@@ -1,4 +1,4 @@
-from model import SineNet, compute_q_lla
+from models.sinemodel import SineNet, compute_q_lla
 from data import generate_sine_data
 import torch.optim as optim
 import torch.nn as nn
@@ -8,7 +8,9 @@ import matplotlib.pyplot as plt
 from plots import plot_model
 import os
 
-def train(model, data, learning_rate = 1e-3, weight_decay = 1e-2, num_epochs = 10000, save_path="models/sine_net.pth"):
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+def train_sine(model, data, learning_rate = 1e-3, weight_decay = 1e-2, num_epochs = 10000, save_path="results/models/sine_net.pth"):
     criterion = nn.MSELoss()  # MSE loss for regression
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
@@ -35,16 +37,46 @@ def train(model, data, learning_rate = 1e-3, weight_decay = 1e-2, num_epochs = 1
     # Save the trained model
     torch.save(model.state_dict(), save_path)
 
-    return model
+def train_mnist(model, data, learning_rate=1e-3, weight_decay=1e-4, num_epochs=10, save_path="results/models/mnist_cnn.pth"):
+    print(f"Using device: {DEVICE}")
+    model.to(DEVICE)
 
-if __name__ == "__main__":
-    model = SineNet()
-    train(model=model)
-    x_train, y_train = generate_sine_data(100)
-    plot_model(model=model, x_train=x_train, y_train=y_train)
-    
-    # Compute q_LLA posterior
-    theta_map, covariance = compute_q_lla(model, x_train)
-    print("MAP Parameters:", theta_map)
-    print("Posterior Covariance Shape:", covariance.shape)
+    # Loss function for classification
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
+    model.train()  # Set the model to training mode
+
+    for epoch in range(num_epochs):
+        total_loss = 0
+        correct = 0
+        total = 0
+
+        for images, labels in data:
+            images, labels = images.to(DEVICE), labels.to(DEVICE)
+            optimizer.zero_grad()
+
+            outputs = model(images)  # Forward pass
+            loss = criterion(outputs, labels)  # Compute loss
+            loss.backward()  # Backpropagation
+            optimizer.step()  # Update weights
+
+            total_loss += loss.item()
+
+            # Compute training accuracy
+            _, predicted = outputs.max(1)
+            total += labels.size(0)
+            correct += predicted.eq(labels).sum().item()
+
+        # Print stats every epoch
+        avg_loss = total_loss / len(data)
+        accuracy = 100.0 * correct / total
+        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.6f}, Accuracy: {accuracy:.2f}%")
+
+    print(f"Final Loss: {avg_loss:.6f}, Final Accuracy: {accuracy:.2f}%")
+
+    # Ensure the save directory exists
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+    # Save the trained model
+    torch.save(model.state_dict(), save_path)

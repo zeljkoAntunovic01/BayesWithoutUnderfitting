@@ -1,1 +1,8 @@
-_pycache_/
+# Ignore compiled Python files
+__pycache__/
+
+# Ignore the dataset folder
+data/
+
+# Ignore saved models
+results/models/

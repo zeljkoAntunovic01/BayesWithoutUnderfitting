@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch
 import numpy as np
 
-from utils import compute_model_jacobian_params, compute_loss_jacobian_params, estimate_sigma
+from utils import compute_model_jacobian_params, compute_loss_jacobian_params, estimate_sigma_sine
 
 class SineNet(nn.Module):
     def __init__(self):
@@ -39,7 +39,7 @@ def compute_q_lla(model, x_train, y_train, alpha=10.0):
     print("Max Jacobian:", torch.max(J).item())
     print("Min Jacobian:", torch.min(J).item())
 
-    sigma = estimate_sigma(model, x_train, y_train)  # Estimate sigma
+    sigma = estimate_sigma_sine(model, x_train, y_train)  # Estimate sigma
     GGN = (1 / sigma**2) * (J.T @ J)
     identity = torch.eye(GGN.shape[0])
     covariance = torch.inverse(alpha * identity + GGN)
@@ -57,6 +57,7 @@ def compute_q_proj(model, x_train, y_train, alpha=50.0):
     Args:
         model: Trained SineNet model.
         x_train: Training inputs (torch.Tensor).
+        y_train: Training outputs (torch.Tensor).
         alpha: Prior precision term (controls posterior variance).
     
     Returns:
@@ -69,7 +70,7 @@ def compute_q_proj(model, x_train, y_train, alpha=50.0):
     print("Max Jacobian:", torch.max(J).item())
     print("Min Jacobian:", torch.min(J).item())
 
-    sigma = estimate_sigma(model, x_train, y_train)  # Estimate sigma
+    sigma = estimate_sigma_sine(model, x_train, y_train)  # Estimate sigma
     GGN = (1 / sigma**2) * (J.T @ J)
     eigenvalues, V = torch.linalg.eigh(GGN)
     
@@ -110,7 +111,7 @@ def compute_q_loss(model, x_train, y_train, alpha=10.0):
     print("Max Loss-Jacobian:", torch.max(J_L_theta).item())
     print("Min Loss-Jacobian:", torch.min(J_L_theta).item())
 
-    sigma = estimate_sigma(model, x_train, y_train)  # Estimate sigma
+    sigma = estimate_sigma_sine(model, x_train, y_train)  # Estimate sigma
     GGN = (1 / sigma**2) * (J_L_theta.T @ J_L_theta)
     eigenvalues, V = torch.linalg.eigh(GGN)
     null_mask = (eigenvalues <= 1e-6).float()
@@ -125,32 +126,6 @@ def compute_q_loss(model, x_train, y_train, alpha=10.0):
     print("Projected Covariance Diagonal Max:", torch.max(projected_covariance.diagonal()).item())
 
     return theta_map, projected_covariance
-
-def sample_from_posterior(theta_map, covariance, num_samples=10, scale=0.1):
-    """
-    Samples parameters from the posterior using SVD for stability
-    with added scaling to control uncertainty spread.
-    Args:
-        theta_map: Flattened MAP estimate of model parameters.
-        covariance: Posterior covariance matrix.
-        num_samples: Number of samples to draw.
-        scale: Scaling factor for eigenvalues.
-    Returns:
-        samples: List of sampled parameter tensors.
-    """
-    U, S, V = torch.svd(covariance)
-    print(f"Number of clamped eigenvalues: {(S < 1e-6).sum().item()}")
-    S = torch.clamp(S, min=1e-6)  # Avoid near-zero eigenvalues
-    L = U @ torch.diag(torch.sqrt(scale * S))  # Scale eigenvalues down
-
-    samples = []
-
-    for _ in range(num_samples):
-        epsilon = torch.randn_like(theta_map)  # Sample from N(0, I)
-        theta_sample = theta_map + L @ epsilon  # Apply scaled transformation
-        samples.append(theta_sample)
-
-    return samples
 
 def bayesian_prediction(model, theta_samples, x_test):
     """
