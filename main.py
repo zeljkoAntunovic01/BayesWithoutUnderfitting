@@ -1,3 +1,4 @@
+import json
 import models.sinemodel as sinemodel
 import models.mnistmodel as mnistmodel
 from data import generate_sine_data, load_MNIST_data
@@ -5,11 +6,9 @@ from train import train_mnist, train_sine
 import torch
 from matplotlib import pyplot as plt
 import numpy as np
-from sklearn.metrics import mean_squared_error
 from plots import plot_model, plot_bayesian_model_samples, plot_bayesian_model_predictions
 import os
-
-from utils import disassemble_data_loader, sample_from_posterior
+from utils import disassemble_data_loader, sample_from_posterior, save_metrics
 
 SINE_MODEL_PATH="results/models/sine_net.pth"
 MNIST_MODEL_PATH="results/models/mnist_fc.pth"
@@ -35,11 +34,9 @@ def lla_inference(model, x_train, y_train):
     y_test_pred = model(x_test).detach().numpy()  # MAP model predictions
     mean_pred, var_pred = sinemodel.bayesian_prediction(model, theta_samples, x_test)
 
-    rmse_map = np.sqrt(mean_squared_error(y_test_true, y_test_pred))
-    rmse_bayesian = np.sqrt(mean_squared_error(y_test_true, mean_pred))
-
-    print(f"RMSE (MAP Model): {rmse_map:.4f}")
-    print(f"RMSE (Bayesian Mean Model): {rmse_bayesian:.4f}")
+    metrics = save_metrics(y_test_pred, mean_pred, var_pred, y_test_true, "results/metrics/sine_lla_metrics.json")
+    rmse_map = metrics["MAP"]["RMSE"]
+    rmse_bayesian = metrics["Bayesian"]["RMSE"]
 
     plot_bayesian_model_samples(model, theta_samples, x_test, posterior="qLLA")
     plot_bayesian_model_predictions(x_train, y_train, x_test, y_test_true, y_test_pred, mean_pred, var_pred, rmse_map, rmse_bayesian, posterior="qLLA")
@@ -48,7 +45,7 @@ def lla_inference(model, x_train, y_train):
     torch.nn.utils.vector_to_parameters(original_params, model.parameters())
     model.eval()
 
-def lla_inferece_mnist(model, train_loader, test_loader):
+def lla_inference_mnist(model, train_loader, test_loader):
     model.to(DEVICE)
     model.eval()
 
@@ -109,11 +106,9 @@ def projected_posterior_inference(model, x_train, y_train):
     y_test_pred = model(x_test).detach().numpy()  # MAP model predictions
     mean_pred, var_pred = sinemodel.bayesian_prediction(model, theta_samples, x_test)
 
-    rmse_map = np.sqrt(mean_squared_error(y_test_true, y_test_pred))
-    rmse_bayesian = np.sqrt(mean_squared_error(y_test_true, mean_pred))
-
-    print(f"RMSE (MAP Model): {rmse_map:.4f}")
-    print(f"RMSE (Bayesian Mean Model): {rmse_bayesian:.4f}")
+    metrics = save_metrics(y_test_pred, mean_pred, var_pred, y_test_true, "results/metrics/sine_projected_posterior_metrics.json")
+    rmse_map = metrics["MAP"]["RMSE"]
+    rmse_bayesian = metrics["Bayesian"]["RMSE"]
 
     plot_bayesian_model_samples(model, theta_samples, x_test, posterior="qPROJ")
     plot_bayesian_model_predictions(x_train, y_train, x_test, y_test_true, y_test_pred, mean_pred, var_pred, rmse_map, rmse_bayesian, posterior="qPROJ")
@@ -141,11 +136,9 @@ def loss_posterior_inference(model, x_train, y_train):
     y_test_pred = model(x_test).detach().numpy()  # MAP model predictions
     mean_pred, var_pred = sinemodel.bayesian_prediction(model, theta_samples, x_test)
 
-    rmse_map = np.sqrt(mean_squared_error(y_test_true, y_test_pred))
-    rmse_bayesian = np.sqrt(mean_squared_error(y_test_true, mean_pred))
-
-    print(f"RMSE (MAP Model): {rmse_map:.4f}")
-    print(f"RMSE (Bayesian Mean Model): {rmse_bayesian:.4f}")
+    metrics = save_metrics(y_test_pred, mean_pred, var_pred, y_test_true, "results/metrics/sine_loss_posterior_metrics.json")
+    rmse_map = metrics["MAP"]["RMSE"]
+    rmse_bayesian = metrics["Bayesian"]["RMSE"]
 
     plot_bayesian_model_samples(model, theta_samples, x_test, posterior="qLOSS")
     plot_bayesian_model_predictions(x_train, y_train, x_test, y_test_true, y_test_pred, mean_pred, var_pred, rmse_map, rmse_bayesian, posterior="qLOSS")
@@ -166,8 +159,8 @@ def run_sine_experiment():
     model.eval()
     plot_model(model=model, x_train=x_train, y_train=y_train)
 
-    lla_inference(model, x_train, y_train)
-    projected_posterior_inference(model, x_train, y_train)
+    #lla_inference(model, x_train, y_train)
+    #projected_posterior_inference(model, x_train, y_train)
     loss_posterior_inference(model, x_train, y_train)
 
 def run_MNIST_experiment():
@@ -179,8 +172,8 @@ def run_MNIST_experiment():
         model.load_state_dict(torch.load(MNIST_MODEL_PATH))
     
     model.eval()
-    lla_inferece_mnist(model, train_data, test_data)
+    lla_inference_mnist(model, train_data, test_data)
 
 if __name__ == "__main__":
-    #run_sine_experiment()
-    run_MNIST_experiment()
+    run_sine_experiment()
+    #run_MNIST_experiment()

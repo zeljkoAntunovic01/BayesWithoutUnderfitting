@@ -1,11 +1,13 @@
-1. Play with null mask threshold  #DONE
-2. Optimize the MSE sigma factor for the HEssian alculation: H = (1 / sigma) * I   #DONE
-3. Steal the metrics from this paper https://arxiv.org/abs/2106.14806  (dont use the library, steal code instead)
-4. Try to do it on MNIST now an d use the above metrics for comparison
+Task 2:
+[X] 1. Play with null mask threshold 
+[X] 2. Optimize the MSE sigma factor for the HEssian alculation: H = (1 / sigma) * I 
+[] 3. Steal the metrics from this paper https://arxiv.org/abs/2106.14806  (dont use the library, steal code instead)
+[] 4. Try to do it on MNIST now an d use the above metrics for comparison #Started
+
+Task 3:
+[] 1. Change the Hessian for the classification (read up on it, it will be idenitity + outer product predicted class probabilities (p @ p.T))
+[X] 2. Implement metrics on the Sine curve first (non classification ones)
+[] 3. Switch to alternating projections for Sine first and then others
+[] 4. 2D dataset to visualize the decision boundary
 
 
-
-
-
-3. The MNIST model is just way too big (NN has over 10k params) which means its impossible to calculate the GGN or the inverse of it,
-so my code crashes there (memory allocation or just takes infintely long to inverse the matrix if i use a smaller model).

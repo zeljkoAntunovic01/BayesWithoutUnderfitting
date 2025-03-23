@@ -1,0 +1,50 @@
+{
+    "MAP": {
+        "RMSE": 0.619737446308136
+    },
+    "Bayesian": {
+        "RMSE": 0.9497846364974976,
+        "NLL": 6.910897731781006,
+        "ECE": 0.19111111111111112,
+        "Sharpness": 0.24019522964954376,
+        "Coverage@90": 0.52,
+        "Coverage_per_alpha": [
+            {
+                "confidence": 0.1,
+                "empirical_coverage": 0.07
+            },
+            {
+                "confidence": 0.2,
+                "empirical_coverage": 0.115
+            },
+            {
+                "confidence": 0.30000000000000004,
+                "empirical_coverage": 0.21
+            },
+            {
+                "confidence": 0.4,
+                "empirical_coverage": 0.265
+            },
+            {
+                "confidence": 0.5,
+                "empirical_coverage": 0.315
+            },
+            {
+                "confidence": 0.6,
+                "empirical_coverage": 0.36
+            },
+            {
+                "confidence": 0.7000000000000001,
+                "empirical_coverage": 0.425
+            },
+            {
+                "confidence": 0.8,
+                "empirical_coverage": 0.5
+            },
+            {
+                "confidence": 0.9,
+                "empirical_coverage": 0.52
+            }
+        ]
+    }
+}

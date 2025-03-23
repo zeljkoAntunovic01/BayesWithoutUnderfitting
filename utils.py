@@ -1,5 +1,10 @@
+import json
+import numpy as np
 import torch
 import torch.nn.functional as F
+from metrics import (
+    compute_coverage, compute_regression_ece, compute_regression_nll, compute_rmse, compute_sharpness
+)
 
 def compute_model_jacobian_params(model, x_train):
     """
@@ -189,3 +194,44 @@ def disassemble_data_loader(data_loader):
     y_train = torch.cat(y_list, dim=0)  # Full training labels
     
     return x_train, y_train
+
+def save_metrics(y_test_pred, mean_pred, var_pred, y_test_true, path):
+    # MAP metrics
+    rmse_map = compute_rmse(y_test_true, y_test_pred)
+
+    # Bayesian model metrics
+    rmse_bayesian = compute_rmse(y_test_true, mean_pred)
+    nll_bayesian = compute_regression_nll(mean_pred, np.sqrt(var_pred), y_test_true)
+    ece_bayesian, coverage_per_alpha = compute_regression_ece(mean_pred, np.sqrt(var_pred), y_test_true)
+    sharpness_bayesian = compute_sharpness(np.sqrt(var_pred))
+    coverage__bayesian = compute_coverage(mean_pred, np.sqrt(var_pred), y_test_true)
+
+    print(f"RMSE (MAP Model): {rmse_map:.4f}")
+    print(f"RMSE (Bayesian Mean Model): {rmse_bayesian:.4f}")
+    print(f"NLL (Bayesian Model): {nll_bayesian:.4f}")
+    print(f"ECE (Bayesian Model): {ece_bayesian:.4f}")
+
+    # Save the metrics
+    metrics = {
+        "MAP": {
+            "RMSE": float(rmse_map)
+        },
+        "Bayesian": {
+            "RMSE": float(rmse_bayesian),
+            "NLL": float(nll_bayesian),
+            "ECE": float(ece_bayesian),
+            "Sharpness": float(sharpness_bayesian),
+            "Coverage@90": float(coverage__bayesian),
+            "Coverage_per_alpha": [
+                {
+                    "confidence": float(alpha),
+                    "empirical_coverage": float(cov)
+                }
+                for alpha, cov in coverage_per_alpha
+            ]
+        }
+    }
+    with open(path, "w") as f:
+        json.dump(metrics, f, indent=4)
+
+    return metrics

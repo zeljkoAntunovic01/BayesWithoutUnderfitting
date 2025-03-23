@@ -50,7 +50,7 @@ def compute_q_lla(model, x_train, y_train, alpha=10.0):
     return theta_map, covariance
 
 #TODO: When I left Alpha at 10, the model was super underfit. 50 seemed to work better, but why?
-def compute_q_proj(model, x_train, y_train, alpha=50.0):
+def compute_q_proj(model, x_train, y_train, alpha=20.0):
     """
     Computes the q_proj posterior for a trained model using the null space of the GGN matrix.
     
@@ -90,7 +90,7 @@ def compute_q_proj(model, x_train, y_train, alpha=50.0):
 
     return theta_map, projected_covariance
 
-def compute_q_loss(model, x_train, y_train, alpha=10.0):
+def compute_q_loss(model, x_train, y_train, alpha=3.0):
     """
     Computes the q_loss posterior for a trained model using the Loss-Jacobian approach.
     
