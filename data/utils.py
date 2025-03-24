@@ -1,9 +1,9 @@
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader, Subset
+from sklearn.model_selection import train_test_split
 
 
 # Generate sine wave dataset
@@ -42,26 +42,3 @@ def load_MNIST_data(train_size=10, test_size=2, batch_size=64):
     test_loader = DataLoader(test_subset, batch_size=batch_size, shuffle=False)
 
     return train_loader, test_loader
-
-def plot_sine_data():
-    # Generate and visualize the data
-    x_train, y_train = generate_sine_data(100)
-    plt.scatter(x_train.numpy(), y_train.numpy(), label="Training Data")
-    plt.plot(x_train.numpy(), np.sin(x_train.numpy()), color="red", label="True Function")
-    plt.legend()
-    plt.show()
-
-def plot_MNIST_data():
-    # Load the MNIST dataset
-    train_loader, test_loader = load_MNIST_data(train_size=10000, test_size=2000)
-
-    # Visualize a batch of images
-    images, labels = next(iter(train_loader))
-    grid = torchvision.utils.make_grid(images, nrow=8, normalize=True)
-    plt.imshow(grid.permute(1, 2, 0))
-    plt.axis("off")
-    plt.show()
-
-if __name__ == "__main__":
-    #plot_sine_data()
-    plot_MNIST_data()

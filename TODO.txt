@@ -9,5 +9,6 @@ Task 3:
 [X] 2. Implement metrics on the Sine curve first (non classification ones)
 [] 3. Switch to alternating projections for Sine first and then others
 [] 4. 2D dataset to visualize the decision boundary
+[] 5. Implement metrics for the classification models
 
 

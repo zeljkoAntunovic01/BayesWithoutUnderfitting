@@ -1,5 +1,5 @@
 from models.sinemodel import SineNet, compute_q_lla
-from data import generate_sine_data
+from data.utils import generate_sine_data
 import torch.optim as optim
 import torch.nn as nn
 import torch
@@ -37,7 +37,7 @@ def train_sine(model, data, learning_rate = 1e-3, weight_decay = 1e-2, num_epoch
     # Save the trained model
     torch.save(model.state_dict(), save_path)
 
-def train_mnist(model, data, learning_rate=1e-3, weight_decay=1e-4, num_epochs=10, save_path="results/models/mnist_cnn.pth"):
+def train_classifier(model, data, save_path, learning_rate=1e-3, weight_decay=1e-4, num_epochs=10):
     print(f"Using device: {DEVICE}")
     model.to(DEVICE)
 

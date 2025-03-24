@@ -1,17 +1,19 @@
-import json
 import models.sinemodel as sinemodel
 import models.mnistmodel as mnistmodel
-from data import generate_sine_data, load_MNIST_data
-from train import train_mnist, train_sine
+from models.fcmodel import FC_2D_Net
+from data.utils import generate_sine_data, load_MNIST_data
+from data.gaussian_2d_dataset import Gaussian2DClassificationDataset
+from train import train_classifier, train_sine
 import torch
-from matplotlib import pyplot as plt
+from torch.utils.data import DataLoader
 import numpy as np
-from plots import plot_model, plot_bayesian_model_samples, plot_bayesian_model_predictions
+from plots import plot_2D_decision_boundary_MAP, plot_model, plot_bayesian_model_samples, plot_bayesian_model_predictions
 import os
 from utils import disassemble_data_loader, sample_from_posterior, save_metrics
 
 SINE_MODEL_PATH="results/models/sine_net.pth"
 MNIST_MODEL_PATH="results/models/mnist_fc.pth"
+FC_2D_MODEL_PATH="results/models/fc_2d_net.pth"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 def lla_inference(model, x_train, y_train):
@@ -167,13 +169,30 @@ def run_MNIST_experiment():
     train_data, test_data = load_MNIST_data()
     model = mnistmodel.MNIST_FC()
     if not os.path.exists(MNIST_MODEL_PATH):
-        train_mnist(model=model, data=train_data, save_path=MNIST_MODEL_PATH)
+        train_classifier(model=model, data=train_data, save_path=MNIST_MODEL_PATH)
     else:
         model.load_state_dict(torch.load(MNIST_MODEL_PATH))
     
     model.eval()
     lla_inference_mnist(model, train_data, test_data)
 
+def run_2d_classification_experiment():
+    train_dataset = Gaussian2DClassificationDataset(split="train", n_classes=4)
+    test_dataset = Gaussian2DClassificationDataset(split="test", n_classes=4)
+
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+
+    model = FC_2D_Net(n_classes=4)
+    if not os.path.exists(FC_2D_MODEL_PATH):
+        train_classifier(model=model, data=train_loader, save_path=FC_2D_MODEL_PATH)
+    else:
+        model.load_state_dict(torch.load(FC_2D_MODEL_PATH))
+    
+    plot_2D_decision_boundary_MAP(model, test_dataset)
+
+
 if __name__ == "__main__":
-    run_sine_experiment()
+    #run_sine_experiment()
     #run_MNIST_experiment()
+    run_2d_classification_experiment()
