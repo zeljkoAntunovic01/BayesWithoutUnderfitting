@@ -1,0 +1,9 @@
+1. I removed the MNIST because I wanted to work on the 2D dataset instead, since I can visualize
+decision boundaries, entropy and confidence values and see how my model actually works.
+
+2. Trying to eigen decompose the GGN for the classification model was not possible (ill-conditioned, 
+too many repeated eigenvalues)
+
+3. What would be out of distribution data for the Gaussian blob dataset?
+
+4. My model is confident on the egdes, shouldnt it not be confident?

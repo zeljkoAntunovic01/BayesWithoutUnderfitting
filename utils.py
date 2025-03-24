@@ -1,9 +1,8 @@
 import json
 import numpy as np
 import torch
-import torch.nn.functional as F
 from metrics import (
-    compute_coverage, compute_regression_ece, compute_regression_nll, compute_rmse, compute_sharpness
+    compute_accuracy, compute_brier_score, compute_classification_ece_mce, compute_classification_nll, compute_confidence, compute_coverage, compute_multiclass_auroc, compute_predictive_entropy, compute_regression_ece, compute_regression_nll, compute_rmse, compute_sharpness
 )
 
 def compute_model_jacobian_params(model, x_train):
@@ -169,7 +168,7 @@ def disassemble_data_loader(data_loader):
     
     return x_train, y_train
 
-def save_metrics(y_test_pred, mean_pred, var_pred, y_test_true, path):
+def save_metrics_regression(y_test_pred, mean_pred, var_pred, y_test_true, path):
     # MAP metrics
     rmse_map = compute_rmse(y_test_true, y_test_pred)
 
@@ -202,6 +201,72 @@ def save_metrics(y_test_pred, mean_pred, var_pred, y_test_true, path):
                     "empirical_coverage": float(cov)
                 }
                 for alpha, cov in coverage_per_alpha
+            ]
+        }
+    }
+    with open(path, "w") as f:
+        json.dump(metrics, f, indent=4)
+
+    return metrics
+
+def save_metrics_classification(y_test_pred_map, y_test_pred, mean_probs_pred, var_pred, y_test_true, path):
+    # MAP metrics
+    acc_map = compute_accuracy(y_test_true, y_test_pred_map)
+    nll_map = compute_classification_nll(y_test_true, y_test_pred_map)
+    ece_map, mce_map = compute_classification_ece_mce(y_test_true, y_test_pred_map, n_bins=10)
+    brier_score_map = compute_brier_score(y_test_true, y_test_pred_map)
+    confidence_map = compute_confidence(y_test_pred_map)
+    predictive_entropy_map = compute_predictive_entropy(y_test_pred_map)
+    auroc_per_class_map = compute_multiclass_auroc(y_test_true, y_test_pred_map)
+
+    # Bayesian model metrics
+    acc_bayesian = compute_accuracy(y_test_true, mean_probs_pred)
+    nll_bayesian = compute_classification_nll(y_test_true, mean_probs_pred)
+    ece_bayesian, mce_bayesian = compute_classification_ece_mce(y_test_true, mean_probs_pred, n_bins=10)
+    brier_score_bayesian = compute_brier_score(y_test_true, mean_probs_pred)
+    confidence_bayesian = compute_confidence(mean_probs_pred)
+    predictive_entropy_bayesian = compute_predictive_entropy(mean_probs_pred)
+    aurco_per_class_bayesian = compute_multiclass_auroc(y_test_true, mean_probs_pred)
+
+    print(f"Accuracy (MAP Model): {acc_map:.4f}")
+    print(f"Accuracy (Bayesian Mean Model): {acc_bayesian:.4f}")
+    print(f"NLL (Bayesian Model): {nll_bayesian:.4f}")
+    print(f"NLL (MAP Model): {nll_map:.4f}")
+    print(f"ECE (Bayesian Model): {ece_bayesian:.4f}")
+    print(f"ECE (MAP Model): {ece_map:.4f}")
+
+    # Save the metrics
+    metrics = {
+        "MAP": {
+            "Accuracy": float(acc_map),
+            "NLL": float(nll_map),
+            "ECE": float(ece_map),
+            "MCE": float(mce_map),
+            "Brier Score": float(brier_score_map),
+            "Confidence": float(confidence_map),
+            "Predictive Entropy": float(predictive_entropy_map),
+            "AUROC per class": [
+                {
+                    "class": str(key),
+                    "auroc": float(value)
+                }
+                for key, value in auroc_per_class_map.items()
+            ]
+        },
+        "Bayesian": {
+            "Accuracy": float(acc_bayesian),
+            "NLL": float(nll_bayesian),
+            "ECE": float(ece_bayesian),
+            "MCE": float(mce_bayesian),
+            "Brier Score": float(brier_score_bayesian),
+            "Confidence": float(confidence_bayesian),
+            "Predictive Entropy": float(predictive_entropy_bayesian),
+            "AUROC per class": [
+                {
+                    "class": str(key),
+                    "auroc": float(value)
+                }
+                for key, value in aurco_per_class_bayesian.items()
             ]
         }
     }

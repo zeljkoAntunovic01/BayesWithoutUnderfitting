@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 from plots import plot_2D_decision_boundary_MAP, plot_2D_decision_boundary_confidence, plot_2D_decision_boundary_entropy, plot_model, plot_bayesian_model_samples, plot_bayesian_model_predictions
 import os
-from utils import sample_from_posterior, save_metrics
+from utils import sample_from_posterior, save_metrics_classification, save_metrics_regression
 
 SINE_MODEL_PATH="results/models/sine_net.pth"
 MNIST_MODEL_PATH="results/models/mnist_fc.pth"
@@ -32,7 +32,7 @@ def lla_inference(model, x_train, y_train):
     y_test_pred = model(x_test).detach().numpy()  # MAP model predictions
     mean_pred, var_pred = sinemodel.bayesian_prediction(model, theta_samples, x_test)
 
-    metrics = save_metrics(y_test_pred, mean_pred, var_pred, y_test_true, "results/metrics/sine_lla_metrics.json")
+    metrics = save_metrics_regression(y_test_pred, mean_pred, var_pred, y_test_true, "results/metrics/sine_lla_metrics.json")
     rmse_map = metrics["MAP"]["RMSE"]
     rmse_bayesian = metrics["Bayesian"]["RMSE"]
 
@@ -62,10 +62,14 @@ def lla_inference_2D_classifier(model, train_dataset, test_dataset):
     
     x_test = test_dataset[:][0]
     y_test_true = test_dataset[:][1]
-    mean_pred, var_pred = fcmodel.bayesian_prediction(model, theta_samples, x_test)
+    y_test_pred_map = torch.nn.functional.softmax(model(x_test), dim=1).detach().numpy()
+    mean_probs_pred, var_pred = fcmodel.bayesian_prediction(model, theta_samples, x_test)
+    y_test_pred = np.argmax(mean_probs_pred, axis=1)
+    
+    metrics = save_metrics_classification(y_test_pred_map, y_test_pred, mean_probs_pred, var_pred, y_test_true.detach().numpy(), "results/metrics/2Dclassifier_lla_metrics.json")
 
-    plot_2D_decision_boundary_entropy(model, theta_samples, x_test, y_test_true, mean_pred)
-    plot_2D_decision_boundary_confidence(model, theta_samples, x_test, y_test_true, mean_pred)
+    plot_2D_decision_boundary_entropy(model, theta_samples, x_test, y_test_true, mean_probs_pred)
+    plot_2D_decision_boundary_confidence(model, theta_samples, x_test, y_test_true, mean_probs_pred)
 
     # Restore original MAP parameters
     torch.nn.utils.vector_to_parameters(original_params, model.parameters())
@@ -90,7 +94,7 @@ def projected_posterior_inference(model, x_train, y_train):
     y_test_pred = model(x_test).detach().numpy()  # MAP model predictions
     mean_pred, var_pred = sinemodel.bayesian_prediction(model, theta_samples, x_test)
 
-    metrics = save_metrics(y_test_pred, mean_pred, var_pred, y_test_true, "results/metrics/sine_projected_posterior_metrics.json")
+    metrics = save_metrics_regression(y_test_pred, mean_pred, var_pred, y_test_true, "results/metrics/sine_projected_posterior_metrics.json")
     rmse_map = metrics["MAP"]["RMSE"]
     rmse_bayesian = metrics["Bayesian"]["RMSE"]
 
@@ -120,10 +124,14 @@ def projected_posterior_inference_2D_classifier(model, train_dataset, test_datas
     
     x_test = test_dataset[:][0]
     y_test_true = test_dataset[:][1]
-    mean_pred, var_pred = fcmodel.bayesian_prediction(model, theta_samples, x_test)
+    y_test_pred_map = torch.nn.functional.softmax(model(x_test), dim=1).detach().numpy()
+    mean_probs_pred, var_pred = fcmodel.bayesian_prediction(model, theta_samples, x_test)
+    y_test_pred = np.argmax(mean_probs_pred, axis=1)
+    
+    metrics = save_metrics_classification(y_test_pred_map, y_test_pred, mean_probs_pred, var_pred, y_test_true.detach().numpy(), "results/metrics/2Dclassifier_proj_metrics.json")
 
-    plot_2D_decision_boundary_entropy(model, theta_samples, x_test, y_test_true, mean_pred)
-    plot_2D_decision_boundary_confidence(model, theta_samples, x_test, y_test_true, mean_pred)
+    plot_2D_decision_boundary_entropy(model, theta_samples, x_test, y_test_true, mean_probs_pred)
+    plot_2D_decision_boundary_confidence(model, theta_samples, x_test, y_test_true, mean_probs_pred)
 
     # Restore original MAP parameters
     torch.nn.utils.vector_to_parameters(original_params, model.parameters())
@@ -148,7 +156,7 @@ def loss_posterior_inference(model, x_train, y_train):
     y_test_pred = model(x_test).detach().numpy()  # MAP model predictions
     mean_pred, var_pred = sinemodel.bayesian_prediction(model, theta_samples, x_test)
 
-    metrics = save_metrics(y_test_pred, mean_pred, var_pred, y_test_true, "results/metrics/sine_loss_posterior_metrics.json")
+    metrics = save_metrics_regression(y_test_pred, mean_pred, var_pred, y_test_true, "results/metrics/sine_loss_posterior_metrics.json")
     rmse_map = metrics["MAP"]["RMSE"]
     rmse_bayesian = metrics["Bayesian"]["RMSE"]
 
@@ -191,8 +199,8 @@ def run_2d_classification_experiment():
     model.eval()
     #plot_2D_decision_boundary_MAP(model, test_dataset)
 
-    #lla_inference_2D_classifier(model, train_dataset, test_dataset)
-    projected_posterior_inference_2D_classifier(model, train_dataset, test_dataset)
+    lla_inference_2D_classifier(model, train_dataset, test_dataset)
+    #projected_posterior_inference_2D_classifier(model, train_dataset, test_dataset)
 
 
 if __name__ == "__main__":

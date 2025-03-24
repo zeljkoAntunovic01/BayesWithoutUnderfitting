@@ -20,7 +20,7 @@ class FC_2D_Net(nn.Module):
         x = self.fc3(x)  # Raw logits
         return x
     
-def compute_q_lla(model, x_train, y_train, alpha=3.0):
+def compute_q_lla(model, x_train, y_train, alpha=2.0):
     """
     Computes the q_LLA posterior for a trained classifier model.
 

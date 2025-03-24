@@ -1,11 +1,15 @@
 import numpy as np
 from scipy.stats import norm
-from sklearn.metrics import root_mean_squared_error
+from sklearn.metrics import root_mean_squared_error, roc_auc_score
 
 def compute_rmse(y_true, y_pred):
     """Compute Root Mean Squared Error (RMSE) using sklearn."""
     return root_mean_squared_error(y_true, y_pred)
 
+def compute_accuracy(y_true, y_pred_probs):
+    """Compute classification accuracy."""
+    y_pred = np.argmax(y_pred_probs, axis=1)
+    return np.mean(y_true == y_pred)
 
 def compute_regression_nll(mu, sigma, y_true, eps=1e-6):
     """
@@ -23,6 +27,11 @@ def compute_regression_nll(mu, sigma, y_true, eps=1e-6):
     sigma = np.clip(sigma, a_min=eps, a_max=None)  # Avoid zero std
     nll = 0.5 * np.log(2 * np.pi * sigma**2) + ((y_true - mu) ** 2) / (2 * sigma**2)
     return np.mean(nll)
+
+def compute_classification_nll(y_true, y_pred_probs, eps=1e-8):
+    """NLL for classification with predicted probabilities"""
+    log_probs = np.log(np.clip(y_pred_probs[np.arange(len(y_true)), y_true], eps, 1.0))
+    return -np.mean(log_probs)
 
 
 def compute_sharpness(sigma):
@@ -94,3 +103,99 @@ def compute_regression_ece(mu, sigma, y_true, alphas=None):
     ece /= len(alphas)
     return ece, list(zip(alphas, coverage_list))
 
+def compute_classification_ece_mce(y_true, y_pred_probs, n_bins=15):
+    """
+    Compute both ECE and MCE (Expected and Maximum Calibration Error).
+    
+    Returns:
+    - ece: float
+    - mce: float
+    """
+    confidences = np.max(y_pred_probs, axis=1)
+    predictions = np.argmax(y_pred_probs, axis=1)
+    accuracies = (predictions == y_true)
+    
+    bin_boundaries = np.linspace(0.0, 1.0, n_bins + 1)
+    ece = 0.0
+    mce = 0.0
+
+    for i in range(n_bins):
+        lower, upper = bin_boundaries[i], bin_boundaries[i + 1]
+        mask = (confidences > lower) & (confidences <= upper)
+        if np.any(mask):
+            bin_acc = np.mean(accuracies[mask])
+            bin_conf = np.mean(confidences[mask])
+            gap = abs(bin_conf - bin_acc)
+            ece += gap * np.sum(mask) / len(y_true)
+            mce = max(mce, gap)
+    
+    return ece, mce
+
+
+def compute_brier_score(y_true, y_pred_probs):
+    """
+    Compute Brier Score for multiclass classification.
+
+    Parameters:
+    - y_true: (N,) int array of true class indices
+    - y_pred_probs: (N, C) array of predicted class probabilities
+
+    Returns:
+    - brier: float, mean Brier score
+    """
+    N, C = y_pred_probs.shape
+    y_true_onehot = np.zeros_like(y_pred_probs)
+    y_true_onehot[np.arange(N), y_true] = 1
+    return np.mean(np.sum((y_pred_probs - y_true_onehot) ** 2, axis=1))
+
+def compute_predictive_entropy(y_pred_probs, eps=1e-8):
+    """
+    Compute predictive entropy for each sample.
+    
+    Parameters:
+    - y_pred_probs: (N, C) array of predicted class probabilities
+
+    Returns:
+    - entropies: (N,) array of entropy values per sample
+    """
+    clipped_probs = np.clip(y_pred_probs, eps, 1.0)
+    entropies = -np.sum(clipped_probs * np.log(clipped_probs), axis=1)
+    return np.mean(entropies)
+
+def compute_confidence(y_pred_probs):
+    """
+    Compute average confidence of predictions.
+    
+    Parameters:
+    - y_pred_probs: (N, C) array of predicted class probabilities
+    
+    Returns:
+    - confidence: float, average max predicted probability across samples
+    """
+    confidences = np.max(y_pred_probs, axis=1)  # confidence per sample
+    return np.mean(confidences)
+
+def compute_multiclass_auroc(y_true, y_pred_probs):
+    """
+    Compute per-class AUROC using one-vs-rest strategy.
+
+    Parameters:
+    - y_true: (N,) array of int true labels
+    - y_pred_probs: (N, C) array of predicted class probabilities
+
+    Returns:
+    - auroc_per_class: dict[class_index] = AUROC
+    """
+    N, C = y_pred_probs.shape
+    y_true_onehot = np.zeros_like(y_pred_probs)
+    y_true_onehot[np.arange(N), y_true] = 1
+
+    auroc_per_class = {}
+    for c in range(C):
+        try:
+            score = roc_auc_score(y_true_onehot[:, c], y_pred_probs[:, c])
+        except ValueError:
+            score = float('nan')  # Handles class imbalance edge cases
+        auroc_per_class[c] = score
+
+    return auroc_per_class
