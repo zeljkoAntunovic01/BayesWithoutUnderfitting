@@ -80,32 +80,6 @@ def estimate_sigma_sine(model, x_train, y_train):
         sigma = torch.sqrt(sigma_sq)  # Estimate standard deviation
     return sigma
 
-def estimate_sigma_mnist(model, x_train, y_train):
-    """
-    Estimate sigma^2 for MNIST classification using variance of cross-entropy loss.
-
-    Args:
-        model (nn.Module): Trained MNIST_CNN model.
-        x_train (torch.Tensor): Training images (N, 1, 28, 28).
-        y_train (torch.Tensor): Training labels (N,).
-
-    Returns:
-        torch.Tensor: Estimated standard deviation sigma.
-    """
-    model.eval()
-    with torch.no_grad():
-        logits = model(x_train)  # Get raw class scores (logits)
-        log_probs = F.log_softmax(logits, dim=1)  # Log-probabilities
-
-        # Compute cross-entropy loss per sample
-        loss_per_sample = F.nll_loss(log_probs, y_train, reduction="none")
-
-        # Compute variance of loss values
-        sigma_sq = torch.var(loss_per_sample)  # Variance of NLL loss
-        sigma = torch.sqrt(sigma_sq)  # Standard deviation
-
-    return sigma
-
 def compute_model_jacobian_params_classifier(model, x_train):
     """
     Computes the Jacobian of the model outputs (logits) w.r.t. model parameters

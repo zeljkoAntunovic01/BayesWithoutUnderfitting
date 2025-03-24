@@ -1,6 +1,8 @@
 from matplotlib import pyplot as plt
 import numpy as np
 import torch
+from matplotlib.colors import to_rgb, Normalize
+import matplotlib.cm as cm
 
 def plot_model(model, x_train, y_train):
     x_test = torch.linspace(-2 * np.pi, 2 * np.pi, 200).unsqueeze(1)
@@ -67,7 +69,6 @@ def plot_2D_decision_boundary_MAP(model, test_dataset, resolution=300, alpha=0.6
         title (str): Title for the plot.
         alpha (float): Transparency of background class regions.
     """
-    model.eval()
     device = next(model.parameters()).device
 
     # Create meshgrid for background
@@ -130,4 +131,184 @@ def plot_2D_decision_boundary_MAP(model, test_dataset, resolution=300, alpha=0.6
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(f'results/decision_boundaries/MAP_decision_boundary.png')
+    plt.show()
+
+def plot_2D_decision_boundary_entropy(model, theta_samples, X_test, y_test, mean_probs_test, resolution=300, alpha=1.0):
+    """
+    Plots predictive entropy as the background and overlays test points with class-color and correctness markers.
+
+    Args:
+        model: Trained Bayesian model.
+        theta_samples: Samples from q_LLA posterior (T x P).
+        X_test (Tensor): Test inputs (N, 2)
+        y_test (Tensor): Test labels (N,)
+        resolution (int): Grid resolution.
+        alpha (float): Background transparency.
+    """
+    device = next(model.parameters()).device
+
+    # Create grid
+    x_min, x_max = X_test[:, 0].min() - 0.5, X_test[:, 0].max() + 0.5
+    y_min, y_max = X_test[:, 1].min() - 0.5, X_test[:, 1].max() + 0.5
+    xx, yy = np.meshgrid(np.linspace(x_min, x_max, resolution),
+                         np.linspace(y_min, y_max, resolution))
+    grid = np.c_[xx.ravel(), yy.ravel()]
+    grid_tensor = torch.tensor(grid, dtype=torch.float32).to(device)
+
+    # Predictive distribution over grid points
+    mean_probs = []
+    with torch.no_grad():
+        for theta in theta_samples:
+            torch.nn.utils.vector_to_parameters(theta, model.parameters())
+            logits = model(grid_tensor)
+            probs = torch.softmax(logits, dim=1)
+            mean_probs.append(probs.cpu().numpy())
+
+    mean_probs = np.stack(mean_probs, axis=0)  # (T, G, C)
+    mean_pred = np.mean(mean_probs, axis=0)    # (G, C)
+
+    # Predictive entropy
+    entropy = -np.sum(mean_pred * np.log(mean_pred + 1e-12), axis=1)
+    entropy = entropy.reshape(xx.shape)
+    entropy_max = np.log(mean_pred.shape[1])  # Max entropy
+
+    # Plot
+    num_classes = mean_pred.shape[1]
+    cmap = plt.get_cmap("tab10" if num_classes <= 10 else "tab20")
+
+    plt.figure(figsize=(10, 6))
+
+    # Plot entropy background
+    entropy_img = plt.imshow(entropy, extent=(x_min, x_max, y_min, y_max), origin='lower',
+                             cmap='inferno', alpha=alpha, vmin=0, vmax=entropy_max, aspect='auto')
+
+    # Test point plotting
+    X_test_np = X_test.cpu().numpy()
+    y_test_np = y_test.cpu().numpy() if torch.is_tensor(y_test) else y_test
+    pred_test = np.argmax(mean_probs_test, axis=1)
+
+    plotted_labels = set()
+    for class_id in np.unique(y_test_np):
+        mask = (y_test_np == class_id)
+        correct = (pred_test == y_test_np) & mask
+        wrong = (pred_test != y_test_np) & mask
+
+        if correct.any():
+            plt.scatter(X_test_np[correct, 0], X_test_np[correct, 1],
+                        color=cmap(class_id % cmap.N), edgecolor='black', s=30, marker='o',
+                        label=f"Class {class_id} ✓" if f"Class {class_id} ✓" not in plotted_labels else "")
+            plotted_labels.add(f"Class {class_id} ✓")
+
+        if wrong.any():
+            plt.scatter(X_test_np[wrong, 0], X_test_np[wrong, 1],
+                        color=cmap(class_id % cmap.N), edgecolor='black', s=50, marker='^',
+                        label=f"Misclass {class_id}" if f"Misclass {class_id}" not in plotted_labels else "")
+            plotted_labels.add(f"Misclass {class_id}")
+
+    # Final polish
+    plt.title("Bayesian Model: Predictive Entropy and Classification")
+    plt.xlabel("X1")
+    plt.ylabel("X2")
+    # Place legend above the plot, outside to the left
+    plt.legend(
+        loc="upper left",
+        bbox_to_anchor=(1.2, 0.5),  # Push farther right (x = 1.25)
+        borderaxespad=0.,
+        title="Test Points"
+    )
+        # Place colorbar on right without overlap
+    cbar = plt.colorbar(entropy_img, shrink=0.75, pad=0.02)
+    cbar.set_label("Predictive Entropy")
+
+    # Adjust layout so both legend and colorbar have space
+    plt.tight_layout(rect=[0, 0, 0.85, 1])  # Reserve 15% for right margin
+    plt.savefig("results/decision_boundaries/Bayesian_decision_boundary_entropy.png")
+    plt.show()
+
+
+
+def plot_2D_decision_boundary_confidence(model, theta_samples, X_test, y_test, mean_probs_test, resolution=300, alpha=1.0):
+    """
+    Plots a confidence map as a grayscale background where brightness increases near decision boundaries.
+    Test points are colored by class and marked by correctness (circles/triangles).
+
+    Args:
+        model: Trained Bayesian model
+        theta_samples: Posterior samples (T x P)
+        X_test: Test input tensor (N x 2)
+        y_test: Test label tensor (N,)
+        resolution: Grid resolution for background
+        alpha: Background transparency
+    """
+    device = next(model.parameters()).device
+
+    # Build grid over input space
+    x_min, x_max = X_test[:, 0].min() - 0.5, X_test[:, 0].max() + 0.5
+    y_min, y_max = X_test[:, 1].min() - 0.5, X_test[:, 1].max() + 0.5
+    xx, yy = np.meshgrid(np.linspace(x_min, x_max, resolution),
+                         np.linspace(y_min, y_max, resolution))
+    grid = np.c_[xx.ravel(), yy.ravel()]
+    grid_tensor = torch.tensor(grid, dtype=torch.float32).to(device)
+
+    # Predictive mean probabilities over the grid
+    probs_all = []
+    with torch.no_grad():
+        for theta in theta_samples:
+            torch.nn.utils.vector_to_parameters(theta, model.parameters())
+            logits = model(grid_tensor)
+            probs = torch.softmax(logits, dim=1)
+            probs_all.append(probs.cpu().numpy())
+
+    probs_all = np.stack(probs_all, axis=0)  # (T, G, C)
+    mean_probs = np.mean(probs_all, axis=0)  # (G, C)
+    confidence = np.max(mean_probs, axis=1)  # (G,)
+    confidence = confidence.reshape(xx.shape)
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Plot confidence background (inverted: high conf = dark, low conf = bright)
+    confidence_img = ax.imshow(confidence, extent=(x_min, x_max, y_min, y_max), origin="lower",
+                               cmap="BuPu", alpha=alpha, aspect="auto", vmin=0.0, vmax=1.0)
+
+    # Colorbar
+    norm = Normalize(vmin=0.0, vmax=1.0)
+    sm = cm.ScalarMappable(cmap="BuPu", norm=norm)
+    sm.set_array([])
+    cbar = plt.colorbar(sm, ax=ax, shrink=0.85, pad=0.03)
+    cbar.set_label("Confidence")
+
+    # Plot test points
+    X_test_np = X_test.cpu().numpy()
+    y_test_np = y_test.cpu().numpy() if torch.is_tensor(y_test) else y_test
+    pred_test = np.argmax(mean_probs_test, axis=1)
+    num_classes = mean_probs.shape[1]
+    cmap = plt.get_cmap("tab10" if num_classes <= 10 else "tab20")
+
+    for class_id in np.unique(y_test_np):
+        mask = (y_test_np == class_id)
+        correct = (pred_test == y_test_np) & mask
+        wrong = (pred_test != y_test_np) & mask
+
+        if correct.any():
+            ax.scatter(X_test_np[correct, 0], X_test_np[correct, 1],
+                       color=cmap(class_id % cmap.N), edgecolor='black',
+                       s=30, marker='o', label=f"Class {class_id}")
+        if wrong.any():
+            ax.scatter(X_test_np[wrong, 0], X_test_np[wrong, 1],
+                       color=cmap(class_id % cmap.N), edgecolor='black',
+                       s=50, marker='^', label=f"Misclass {class_id}")
+
+    # Final polish
+    ax.set_title("Confidence Map: Bright = Uncertain, Dark = Confident")
+    ax.set_xlabel("X1")
+    ax.set_ylabel("X2")
+    ax.legend(
+        loc="upper left",
+        bbox_to_anchor=(1.2, 0.5),
+        borderaxespad=0.,
+        title="Test Points"
+    )
+    plt.tight_layout(rect=[0, 0, 0.85, 1])
+    plt.savefig("results/decision_boundaries/Bayesian_decision_boundary_confidence.png")
     plt.show()

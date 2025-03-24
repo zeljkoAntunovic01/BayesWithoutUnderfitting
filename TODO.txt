@@ -5,10 +5,10 @@ Task 2:
 [] 4. Try to do it on MNIST now an d use the above metrics for comparison #Started
 
 Task 3:
-[] 1. Change the Hessian for the classification (read up on it, it will be idenitity + outer product predicted class probabilities (p @ p.T))
+[X] 1. Change the Hessian for the classification (read up on it, it will be idenitity + outer product predicted class probabilities (p @ p.T))
 [X] 2. Implement metrics on the Sine curve first (non classification ones)
 [] 3. Switch to alternating projections for Sine first and then others
-[] 4. 2D dataset to visualize the decision boundary
+[X] 4. 2D dataset to visualize the decision boundary
 [] 5. Implement metrics for the classification models
 
 
