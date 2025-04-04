@@ -133,7 +133,7 @@ def plot_2D_decision_boundary_MAP(model, test_dataset, resolution=300, alpha=0.6
     plt.savefig(f'results/decision_boundaries/MAP_decision_boundary.png')
     plt.show()
 
-def plot_2D_decision_boundary_entropy(model, theta_samples, X_test, y_test, mean_probs_test, resolution=300, alpha=1.0):
+def plot_2D_decision_boundary_entropy(model, theta_samples, X_test, y_test, mean_probs_test, resolution=300, alpha=1.0, save_path="results/decision_boundaries/Bayesian_decision_boundary_entropy.png"):
     """
     Plots predictive entropy as the background and overlays test points with class-color and correctness markers.
 
@@ -222,12 +222,12 @@ def plot_2D_decision_boundary_entropy(model, theta_samples, X_test, y_test, mean
 
     # Adjust layout so both legend and colorbar have space
     plt.tight_layout(rect=[0, 0, 0.85, 1])  # Reserve 15% for right margin
-    plt.savefig("results/decision_boundaries/Bayesian_decision_boundary_entropy.png")
+    plt.savefig(save_path)
     plt.show()
 
 
 
-def plot_2D_decision_boundary_confidence(model, theta_samples, X_test, y_test, mean_probs_test, resolution=300, alpha=1.0):
+def plot_2D_decision_boundary_confidence(model, theta_samples, X_test, y_test, mean_probs_test, resolution=300, alpha=1.0, save_path="results/decision_boundaries/Bayesian_decision_boundary_confidence.png"):
     """
     Plots a confidence map as a grayscale background where brightness increases near decision boundaries.
     Test points are colored by class and marked by correctness (circles/triangles).
@@ -310,5 +310,5 @@ def plot_2D_decision_boundary_confidence(model, theta_samples, X_test, y_test, m
         title="Test Points"
     )
     plt.tight_layout(rect=[0, 0, 0.85, 1])
-    plt.savefig("results/decision_boundaries/Bayesian_decision_boundary_confidence.png")
+    plt.savefig(save_path)
     plt.show()

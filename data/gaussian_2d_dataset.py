@@ -4,7 +4,7 @@ from torch.utils.data import Dataset
 
 class Gaussian2DClassificationDataset(Dataset):
     def __init__(self, split="train", n_classes=4, points_per_class=1000, center_box=(-1, 1),
-                 std=0.25, split_ratio=0.8, seed=42):
+                 std=0.05, split_ratio=0.8, seed=77):
         """
         PyTorch-style Dataset for 2D Gaussian blob classification.
 

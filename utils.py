@@ -129,6 +129,47 @@ def compute_model_jacobian_params_classifier(model, x_train):
 
     return J
 
+def compute_loss_jacobian_params_classifier(model, x_train, y_train, criterion):
+    """
+    Computes the Jacobian of the per-datum loss w.r.t. model parameters
+    for a classification model (e.g. FC_2D_Net on MNIST or 2D toy data).
+
+    Args:
+        model: PyTorch classification model.
+        x_train: Input data (torch.Tensor), shape (N, D).
+        y_train: Ground-truth labels (torch.Tensor), shape (N,).
+        criterion: Loss function (e.g., nn.CrossEntropyLoss with reduction='sum').
+
+    Returns:
+        J_L: Jacobian matrix (N, P) where:
+             - N = number of samples
+             - P = number of model parameters
+    """
+    model.eval()
+    device = next(model.parameters()).device
+    x_train = x_train.to(device)
+    y_train = y_train.to(device)
+
+    num_samples = x_train.shape[0]
+    num_params = sum(p.numel() for p in model.parameters())
+    J_L_theta = torch.zeros(num_samples, num_params, device=device)
+
+    for i in range(num_samples):
+        model.zero_grad()
+        xi = x_train[i].unsqueeze(0)      # Shape: (1, D)
+        yi = y_train[i].unsqueeze(0)      # Shape: (1,)
+        
+        output = model(xi)                # Shape: (1, num_classes)
+        loss = criterion(output, yi)      # Scalar loss
+        grads = torch.autograd.grad(loss, model.parameters(), retain_graph=True, create_graph=True)
+
+        grads = [g.view(-1) for g in grads]
+        J_L_theta[i] = torch.cat(grads)
+
+    return J_L_theta
+
+
+
 def sample_from_posterior(theta_map, covariance, num_samples=10, scale=0.1):
     """
     Samples parameters from the posterior using SVD for stability

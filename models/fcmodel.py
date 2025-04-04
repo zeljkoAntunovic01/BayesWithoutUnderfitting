@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import torch
 import numpy as np
 
-from utils import compute_model_jacobian_params_classifier
+from utils import compute_loss_jacobian_params_classifier, compute_model_jacobian_params_classifier
 
 class FC_2D_Net(nn.Module):
     def __init__(self, hidden_units=64, n_classes=4):
@@ -108,17 +108,59 @@ def compute_q_proj(model, x_train, y_train, alpha=10.0):
     H = torch.block_diag(*H_blocks)              # (N·O, N·O)
 
     GGN = (J.T @ H @ J)
-    eigenvalues, V = torch.linalg.eigh(GGN)
+    identity = torch.eye(GGN.shape[0], device=GGN.device)
+    eigenvalues, V = torch.linalg.eigh(identity + GGN)
     
     #TODO: Why do we have to clamp? Why are the values so high?
     eigenvalues = torch.clamp(eigenvalues, max=100) 
     print("Eigenvalues Min:", torch.min(eigenvalues).item())
     print("Eigenvalues Max:", torch.max(eigenvalues).item())
 
-    null_mask = (eigenvalues <= 1e-2).float() 
+    null_mask = (eigenvalues <= 1e-2 + 1).float() 
     print(f"Number of null space dimensions: {null_mask.sum().item()} / {eigenvalues.numel()}")
     I_p = torch.eye(GGN.shape[0])
     projection_matrix = I_p - (V @ (1 - null_mask)) @ V.T
+    projected_covariance = (1.0 / alpha) * projection_matrix
+
+    print("Projected Covariance Diagonal Min:", torch.min(projected_covariance.diagonal()).item())
+    print("Projected Covariance Diagonal Max:", torch.max(projected_covariance.diagonal()).item())
+
+    return theta_map, projected_covariance
+
+def compute_q_loss(model, x_train, y_train, alpha=10.0):
+    """
+    Computes the q_loss posterior for a trained classifier model using the null space of the stacked loss gradients.
+
+    Args:
+        model: Trained classifier model.
+        x_train: Training inputs (torch.Tensor).
+        y_train: Training outputs (torch.Tensor).
+        alpha: Prior precision term (controls posterior variance).
+        loss_fn: Loss function used for training (default: cross-entropy).
+
+    Returns:
+        theta_map: Flattened MAP estimate of model parameters.
+        loss_projected_covariance: Approximate posterior covariance using the loss-projection method.
+    """
+    theta_map = torch.nn.utils.parameters_to_vector(model.parameters()).detach()
+    criterion = nn.CrossEntropyLoss(reduction='sum')
+
+    J_L_theta = compute_loss_jacobian_params_classifier(model, x_train, y_train, criterion)
+    print("Max Jacobian:", torch.max(J_L_theta).item())
+    print("Min Jacobian:", torch.min(J_L_theta).item())
+
+    A = (J_L_theta.T @ J_L_theta)
+    identity = torch.eye(A.shape[0], device=A.device)
+    eigenvalues, V = torch.linalg.eigh(identity + A)
+    
+    eigenvalues = torch.clamp(eigenvalues, max=100) 
+    print("Eigenvalues Min:", torch.min(eigenvalues).item())
+    print("Eigenvalues Max:", torch.max(eigenvalues).item())
+
+    null_mask = (eigenvalues <= (1e-2 + 1)).float() 
+    print(f"Number of null space dimensions: {null_mask.sum().item()} / {eigenvalues.numel()}")
+    I_p = torch.eye(A.shape[0])
+    projection_matrix = I_p - (V @ (1 - null_mask) @ V.T)
     projected_covariance = (1.0 / alpha) * projection_matrix
 
     print("Projected Covariance Diagonal Min:", torch.min(projected_covariance.diagonal()).item())
