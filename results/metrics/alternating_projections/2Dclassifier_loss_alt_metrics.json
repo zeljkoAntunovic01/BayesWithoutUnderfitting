@@ -1,0 +1,56 @@
+{
+    "MAP": {
+        "Accuracy": 1.0,
+        "NLL": 0.0004983491962775588,
+        "ECE": 0.0004978179931640625,
+        "MCE": 0.0004978179931640625,
+        "Brier Score": 1.8079510937241139e-06,
+        "Confidence": 0.9995021820068359,
+        "Predictive Entropy": 0.004259121138602495,
+        "AUROC per class": [
+            {
+                "class": "0",
+                "auroc": 1.0
+            },
+            {
+                "class": "1",
+                "auroc": 1.0
+            },
+            {
+                "class": "2",
+                "auroc": 1.0
+            },
+            {
+                "class": "3",
+                "auroc": 1.0
+            }
+        ]
+    },
+    "Bayesian": {
+        "Accuracy": 1.0,
+        "NLL": 0.2298743724822998,
+        "ECE": 0.2003931172192097,
+        "MCE": 0.4813937544822693,
+        "Brier Score": 0.08367469906806946,
+        "Confidence": 0.7996069192886353,
+        "Predictive Entropy": 0.579916775226593,
+        "AUROC per class": [
+            {
+                "class": "0",
+                "auroc": 1.0
+            },
+            {
+                "class": "1",
+                "auroc": 1.0
+            },
+            {
+                "class": "2",
+                "auroc": 1.0
+            },
+            {
+                "class": "3",
+                "auroc": 1.0
+            }
+        ]
+    }
+}

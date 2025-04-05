@@ -130,7 +130,7 @@ def compute_model_jacobian_params_classifier(model, x_train):
 
     return J
 
-def compute_loss_jacobian_params_classifier(model, x_train, y_train, criterion):
+def compute_loss_jacobian_params_classifier(model, x_train, y_train, criterion=None):
     """
     Computes the Jacobian of the per-datum loss w.r.t. model parameters
     for a classification model (e.g. FC_2D_Net on MNIST or 2D toy data).
@@ -150,6 +150,8 @@ def compute_loss_jacobian_params_classifier(model, x_train, y_train, criterion):
     device = next(model.parameters()).device
     x_train = x_train.to(device)
     y_train = y_train.to(device)
+    if criterion is None:
+        criterion = torch.nn.CrossEntropyLoss(reduction="sum")
 
     num_samples = x_train.shape[0]
     num_params = sum(p.numel() for p in model.parameters())
@@ -197,6 +199,16 @@ def sample_from_posterior(theta_map, covariance, num_samples=10, scale=0.1):
 
     return samples
 
+def project_delta_into_nullspace(delta, M, damping=1e-4):
+    try:
+        MMt = M @ M.T
+        inv = torch.linalg.inv(MMt + damping * torch.eye(MMt.shape[0], device=M.device))
+        projection = M.T @ (inv @ (M @ delta))
+        return delta - projection
+    except Exception as e:
+        print(f"⚠️ Projection failed: {e}")
+        return delta
+
 def alternating_projections_qproj_classifier(
     model, x_train, alpha=10.0, num_samples=100, num_iters=20, batch_size=32
 ):
@@ -221,16 +233,17 @@ def alternating_projections_qproj_classifier(
     P = sum(p.numel() for p in model.parameters())  # number of parameters
     theta_map = torch.nn.utils.parameters_to_vector(model.parameters()).detach()
 
-    # Prepare batched loader
     train_loader = DataLoader(x_train, batch_size=batch_size, shuffle=True)
 
     samples = []
 
-    for i in range(num_samples):
+    for sample_idx in range(num_samples):
+        print(f"\n📦 Sampling posterior sample {sample_idx + 1}/{num_samples}")
         delta = torch.randn(P, device=device) / torch.sqrt(torch.tensor(alpha))
 
-        for _ in range(num_iters):
-            for xb in train_loader:
+        for iter_idx in range(num_iters):
+            print(f"  🔁 Iteration {iter_idx + 1}/{num_iters} | delta norm: {delta.norm().item():.4f}")
+            for batch_idx, xb in enumerate(train_loader):
                 xb = xb.to(device)
                 xb.requires_grad_(True)
 
@@ -238,12 +251,11 @@ def alternating_projections_qproj_classifier(
                 probs = torch.softmax(logits, dim=1)
                 N, O = probs.shape
 
-                # Build H_b^(1/2): sqrt of softmax Hessian (Fisher)
+                # Construct batch-level H_sqrt blocks
                 Hb_blocks = []
                 for i in range(N):
                     p = probs[i].unsqueeze(1)
                     Hi = torch.diag_embed(probs[i]) - p @ p.T
-                    # Add sqrtm(Hi) here — we’ll approximate with eigen decomposition
                     eigvals, eigvecs = torch.linalg.eigh(Hi)
                     eigvals_clamped = torch.clamp(eigvals, min=1e-6)
                     sqrt_Hi = eigvecs @ torch.diag(torch.sqrt(eigvals_clamped)) @ eigvecs.T
@@ -251,24 +263,79 @@ def alternating_projections_qproj_classifier(
 
                 Hb_sqrt = torch.block_diag(*Hb_blocks)
 
-                # Compute Jacobian J_b (logits wrt parameters)
-                J_b = compute_model_jacobian_params_classifier(model, xb)  # Shape: (N*O, P)
-
-                Mb = Hb_sqrt @ J_b  # Shape: (N*O, P)
-
-                # Project delta: delta ← delta - Mᵗ (MMᵗ)^-1 M delta
-                M_delta = Mb @ delta
+                # Compute Jacobian of logits wrt parameters
                 try:
-                    inv = torch.linalg.inv(Mb @ Mb.T + 1e-4 * torch.eye(Mb.shape[0], device=device))
-                except:
-                    continue  # If singular batch, skip
-                projection = Mb.T @ (inv @ M_delta)
-                delta = delta - projection
+                    J_b = compute_model_jacobian_params_classifier(model, xb)  # Shape: (N*O, P)
+                except Exception as e:
+                    print(f"    ⚠️ Skipping batch {batch_idx} due to Jacobian error: {e}")
+                    continue
 
-        samples.append(theta_map + delta.detach().clone())
+                Mb = Hb_sqrt @ J_b  # (N·O, P)
 
+                delta = project_delta_into_nullspace(delta, Mb)
+                if batch_idx % 5 == 0:
+                    print(f"    ✅ Batch {batch_idx}: projection applied, delta norm: {delta.norm().item():.4f}")
+
+        final_sample = theta_map + delta.detach().clone()
+        print(f"✅ Finished sample {sample_idx + 1}, final delta norm: {delta.norm().item():.4f}")
+        samples.append(final_sample)
+
+    print("\n🎉 All posterior samples generated.")
     return samples
 
+def alternating_projections_qloss_classifier(
+    model, dataset, alpha=10.0, num_samples=100, num_iters=20, batch_size=32
+):
+    """
+    Samples from the projected posterior using alternating projections (q_loss),
+    using a dataset object with (x, y) pairs.
+    
+    Args:
+        model: Trained classifier model.
+        dataset: A Dataset object (e.g., TensorDataset) returning (x, y) pairs.
+        alpha: Prior precision.
+        num_samples: Number of posterior samples to draw.
+        num_iters: Projection iterations per sample.
+        batch_size: Batch size for null-space projections.
+    
+    Returns:
+        List of sampled weight vectors (posterior samples).
+    """
+    device = next(model.parameters()).device
+    model.eval()
+
+    P = sum(p.numel() for p in model.parameters())
+    theta_map = torch.nn.utils.parameters_to_vector(model.parameters()).detach()
+    
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    samples = []
+
+    for sample_idx in range(num_samples):
+        print(f"\n📦 Sampling (q_loss) {sample_idx + 1}/{num_samples}")
+        delta = torch.randn(P, device=device) / torch.sqrt(torch.tensor(alpha))
+
+        for iter_idx in range(num_iters):
+            print(f"  🔁 Iter {iter_idx + 1}/{num_iters} | norm: {delta.norm().item():.4f}")
+
+            for batch_idx, (xb, yb) in enumerate(loader):
+                xb, yb = xb.to(device), yb.to(device)
+
+                try:
+                    Mb = compute_loss_jacobian_params_classifier(model, xb, yb)
+                except Exception as e:
+                    print(f"    ⚠️ Skipping batch {batch_idx} due to Jacobian error: {e}")
+                    continue
+
+                delta = project_delta_into_nullspace(delta, Mb)
+
+                if batch_idx % 5 == 0:
+                    print(f"    ✅ Batch {batch_idx}: norm {delta.norm().item():.4f}")
+
+        samples.append(theta_map + delta.detach().clone())
+        print(f"✅ Done (q_loss) {sample_idx + 1}, norm: {delta.norm().item():.4f}")
+
+    print("\n🎉 All q_loss samples complete.")
+    return samples
 
 def disassemble_data_loader(data_loader):
     # Collect full data
