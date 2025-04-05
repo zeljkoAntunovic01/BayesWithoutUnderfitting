@@ -1,6 +1,7 @@
 import json
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 from metrics import (
     compute_accuracy, compute_brier_score, compute_classification_ece_mce, compute_classification_nll, compute_confidence, compute_coverage, compute_multiclass_auroc, compute_predictive_entropy, compute_regression_ece, compute_regression_nll, compute_rmse, compute_sharpness
 )
@@ -195,6 +196,79 @@ def sample_from_posterior(theta_map, covariance, num_samples=10, scale=0.1):
         samples.append(theta_sample)
 
     return samples
+
+def alternating_projections_qproj_classifier(
+    model, x_train, alpha=10.0, num_samples=100, num_iters=20, batch_size=32
+):
+    """
+    Samples from the projected posterior using alternating projections.
+
+    Args:
+        model: Trained classifier (FC_2D_Net).
+        x_train: Training inputs.
+        alpha: Prior precision (controls posterior spread).
+        num_samples: Number of posterior samples.
+        num_iters: Number of alternating projection rounds.
+        batch_size: Minibatch size for local projections.
+
+    Returns:
+        List of sampled weight vectors (torch.Tensor).
+    """
+    device = next(model.parameters()).device
+    x_train = x_train.to(device)
+    model.eval()
+
+    P = sum(p.numel() for p in model.parameters())  # number of parameters
+    theta_map = torch.nn.utils.parameters_to_vector(model.parameters()).detach()
+
+    # Prepare batched loader
+    train_loader = DataLoader(x_train, batch_size=batch_size, shuffle=True)
+
+    samples = []
+
+    for i in range(num_samples):
+        delta = torch.randn(P, device=device) / torch.sqrt(torch.tensor(alpha))
+
+        for _ in range(num_iters):
+            for xb in train_loader:
+                xb = xb.to(device)
+                xb.requires_grad_(True)
+
+                logits = model(xb)
+                probs = torch.softmax(logits, dim=1)
+                N, O = probs.shape
+
+                # Build H_b^(1/2): sqrt of softmax Hessian (Fisher)
+                Hb_blocks = []
+                for i in range(N):
+                    p = probs[i].unsqueeze(1)
+                    Hi = torch.diag_embed(probs[i]) - p @ p.T
+                    # Add sqrtm(Hi) here — we’ll approximate with eigen decomposition
+                    eigvals, eigvecs = torch.linalg.eigh(Hi)
+                    eigvals_clamped = torch.clamp(eigvals, min=1e-6)
+                    sqrt_Hi = eigvecs @ torch.diag(torch.sqrt(eigvals_clamped)) @ eigvecs.T
+                    Hb_blocks.append(sqrt_Hi)
+
+                Hb_sqrt = torch.block_diag(*Hb_blocks)
+
+                # Compute Jacobian J_b (logits wrt parameters)
+                J_b = compute_model_jacobian_params_classifier(model, xb)  # Shape: (N*O, P)
+
+                Mb = Hb_sqrt @ J_b  # Shape: (N*O, P)
+
+                # Project delta: delta ← delta - Mᵗ (MMᵗ)^-1 M delta
+                M_delta = Mb @ delta
+                try:
+                    inv = torch.linalg.inv(Mb @ Mb.T + 1e-4 * torch.eye(Mb.shape[0], device=device))
+                except:
+                    continue  # If singular batch, skip
+                projection = Mb.T @ (inv @ M_delta)
+                delta = delta - projection
+
+        samples.append(theta_map + delta.detach().clone())
+
+    return samples
+
 
 def disassemble_data_loader(data_loader):
     # Collect full data
