@@ -13,6 +13,12 @@ Task 3:
 
 Task 4:
 [X] 1. Make the 2D dataset less noisy
-[] 2. Switch to Alternating projections for the 2D dataset
+[X] 2. Switch to Alternating projections for the 2D dataset
 [X] 3. Finish up the Q_PROJ and Q_LOSS with the naive appraoch by adding an identity matrix to the GGN so it can be decomposed via Eigenvalues
  
+Task 5:
+[X] 1. Optimize the projections code so that it is vectorized and does not instantiate big matrices (or any matrices)
+[X] 2. Add a condition for convergence such as change in norm < 10e-4 or something
+[] 3. Run on MNIST
+[] 4. Run on CIFAR10
+[] 5. Run on HCP (probably necessary for CIFAR10)

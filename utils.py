@@ -5,6 +5,9 @@ from torch.utils.data import DataLoader
 from metrics import (
     compute_accuracy, compute_brier_score, compute_classification_ece_mce, compute_classification_nll, compute_confidence, compute_coverage, compute_multiclass_auroc, compute_predictive_entropy, compute_regression_ece, compute_regression_nll, compute_rmse, compute_sharpness
 )
+from torch.autograd.functional import jvp, vjp
+from torch.nn.utils import parameters_to_vector, vector_to_parameters
+from torch.func import functional_call
 
 def compute_model_jacobian_params(model, x_train):
     """
@@ -171,8 +174,6 @@ def compute_loss_jacobian_params_classifier(model, x_train, y_train, criterion=N
 
     return J_L_theta
 
-
-
 def sample_from_posterior(theta_map, covariance, num_samples=10, scale=0.1):
     """
     Samples parameters from the posterior using SVD for stability
@@ -199,6 +200,7 @@ def sample_from_posterior(theta_map, covariance, num_samples=10, scale=0.1):
 
     return samples
 
+# This is not used anymore -> use the matrix-free version instead
 def project_delta_into_nullspace(delta, M, damping=1e-4):
     try:
         MMt = M @ M.T
@@ -209,6 +211,7 @@ def project_delta_into_nullspace(delta, M, damping=1e-4):
         print(f"⚠️ Projection failed: {e}")
         return delta
 
+# This is not used anymore -> use the matrix-free version instead
 def alternating_projections_qproj_classifier(
     model, x_train, alpha=10.0, num_samples=100, num_iters=20, batch_size=32
 ):
@@ -283,20 +286,90 @@ def alternating_projections_qproj_classifier(
     print("\n🎉 All posterior samples generated.")
     return samples
 
+def vector_to_named_parameters(vec, model):
+    param_dict = {}
+    pointer = 0
+    for name, param in model.named_parameters():
+        num_params = param.numel()
+        param_dict[name] = vec[pointer:pointer + num_params].view_as(param)
+        pointer += num_params
+    return param_dict
+
+def compute_loss_kernel_vp(loss_fn, model_fn, x, y, params, w):
+    def loss_vector(params_vec):
+        out = model_fn(params_vec, x)
+        return loss_fn(out, y, reduction='none')  # shape: (B,)
+
+    # VJP: Jᵗ w
+    _, Jt_w, = vjp(loss_vector, (params,), v=w)
+
+    # JVP: J(Jᵗ w)
+    _, JJt_w = jvp(loss_vector, (params,), Jt_w)
+    return JJt_w
+
+@torch.no_grad()
+def precompute_loss_ggn_inverse(model_fn, loss_fn, xb, yb, params, damping=1e-3):
+    B = xb.shape[0]
+
+    def kvp(w):  # Function: w ↦ JJᵗ w
+        return compute_loss_kernel_vp(loss_fn, model_fn, xb, yb, params, w)
+
+    I = torch.eye(B, device=xb.device)
+    JJt_rows = [kvp(I[i]) for i in range(B)]
+    JJt = torch.stack(JJt_rows, dim=0).detach()
+
+    JJt += damping * torch.eye(B, device=xb.device)
+
+    eigvals, eigvecs = torch.linalg.eigh(JJt)
+    threshold = 1e-3
+    inv_eigvals = 1.0 / eigvals
+    inv_eigvals[eigvals < threshold] = 0.0
+
+    return eigvecs, inv_eigvals
+
+def project_delta_matrix_free(
+    model_fn,
+    xb,
+    yb,
+    delta,
+    eigvecs,
+    inv_eigvals,
+    loss_fn,
+    theta
+):
+    def batch_loss(params_vec):
+        out = model_fn(params_vec, xb)
+        return loss_fn(out, yb, reduction='none')  # (B,)
+
+    # JVP: J · delta
+    _, Jv = jvp(batch_loss, (theta,), (delta,))  # (B,)
+
+    assert Jv.shape == (xb.shape[0],), f"Expected Jv shape ({xb.shape[0]},), got {Jv.shape}"
+
+    # Low-rank solve: V Λ⁻¹ Vᵗ Jv
+    JJt_inv_Jv = eigvecs.T @ Jv            # (r,)
+    JJt_inv_Jv = eigvecs @ (JJt_inv_Jv * inv_eigvals)  # (B,)
+
+    # VJP: Jᵗ · v
+    _, Jt_JJt_inv_Jv = vjp(batch_loss, theta, JJt_inv_Jv)
+
+    return delta - Jt_JJt_inv_Jv
+
 def alternating_projections_qloss_classifier(
-    model, dataset, alpha=10.0, num_samples=100, num_iters=20, batch_size=32
+    model, dataset, alpha=10.0, num_samples=100, max_iters=50, rel_tol=1e-3, batch_size=32
 ):
     """
     Samples from the projected posterior using alternating projections (q_loss),
     using a dataset object with (x, y) pairs.
     
     Args:
-        model: Trained classifier model.
-        dataset: A Dataset object (e.g., TensorDataset) returning (x, y) pairs.
-        alpha: Prior precision.
-        num_samples: Number of posterior samples to draw.
-        num_iters: Projection iterations per sample.
-        batch_size: Batch size for null-space projections.
+        model: Trained classifier (e.g., FC_2D_Net).
+        dataset: Dataset object containing (x, y) pairs.
+        alpha: Prior precision (controls posterior spread).
+        num_samples: Number of posterior samples.
+        max_iters: Maximum number of iterations for convergence.
+        rel_tol: Relative tolerance for convergence.
+        batch_size: Minibatch size for local projections.
     
     Returns:
         List of sampled weight vectors (posterior samples).
@@ -307,29 +380,49 @@ def alternating_projections_qloss_classifier(
     P = sum(p.numel() for p in model.parameters())
     theta_map = torch.nn.utils.parameters_to_vector(model.parameters()).detach()
     
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
     samples = []
+    loss_fn = torch.nn.functional.cross_entropy
+
+    def model_fn(params_vec, x_batch):
+        param_dict = vector_to_named_parameters(params_vec, model)
+        return functional_call(model, param_dict, (x_batch,))
+
+    # Precompute GGN eigenvectors (matrix-free)
+    precomputed_eigens = []
+    for xb, yb in loader:
+        xb, yb = xb.to(device), yb.to(device)
+        eigvecs, inv_eigvals = precompute_loss_ggn_inverse(
+            model_fn=model_fn, loss_fn=loss_fn, xb=xb, yb=yb, params=theta_map
+        )
+        precomputed_eigens.append((xb, yb, eigvecs, inv_eigvals))
 
     for sample_idx in range(num_samples):
         print(f"\n📦 Sampling (q_loss) {sample_idx + 1}/{num_samples}")
         delta = torch.randn(P, device=device) / torch.sqrt(torch.tensor(alpha))
 
-        for iter_idx in range(num_iters):
-            print(f"  🔁 Iter {iter_idx + 1}/{num_iters} | norm: {delta.norm().item():.4f}")
-
-            for batch_idx, (xb, yb) in enumerate(loader):
+        for iter_idx in range(max_iters):
+            delta_old = delta.clone()
+            for xb, yb, eigvecs, inv_eigvals in precomputed_eigens:
                 xb, yb = xb.to(device), yb.to(device)
+                
+                delta = project_delta_matrix_free(
+                    model_fn=model_fn,
+                    xb=xb,
+                    yb=yb,
+                    delta=delta,
+                    eigvecs=eigvecs,
+                    inv_eigvals=inv_eigvals,
+                    loss_fn=loss_fn,
+                    theta=theta_map
+                )
 
-                try:
-                    Mb = compute_loss_jacobian_params_classifier(model, xb, yb)
-                except Exception as e:
-                    print(f"    ⚠️ Skipping batch {batch_idx} due to Jacobian error: {e}")
-                    continue
+            diff = (delta - delta_old).norm()
+            print(f"  🔁 Iter {iter_idx + 1} | Δdelta norm: {diff:.6f} | delta norm: {delta.norm():.4f}")
 
-                delta = project_delta_into_nullspace(delta, Mb)
-
-                if batch_idx % 5 == 0:
-                    print(f"    ✅ Batch {batch_idx}: norm {delta.norm().item():.4f}")
+            if diff < rel_tol:
+                print(f"  ✅ Converged at iteration {iter_idx + 1}")
+                break
 
         samples.append(theta_map + delta.detach().clone())
         print(f"✅ Done (q_loss) {sample_idx + 1}, norm: {delta.norm().item():.4f}")

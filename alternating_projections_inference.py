@@ -56,8 +56,8 @@ def loss_posterior_inference_2D_classifier_alt(model, train_dataset, test_datase
     original_params = torch.nn.utils.parameters_to_vector(model.parameters()).clone()
 
     for i in range(len(theta_samples)):
-        if i % 10 == 0:
-            print(f"Sample {i} Difference from MAP: {torch.norm(theta_samples[i] - theta_map).item()}")
+        #if i % 10 == 0:
+        print(f"Sample {i} Difference from MAP: {torch.norm(theta_samples[i] - theta_map).item()}")
     
     x_test = test_dataset[:][0]
     y_test_true = test_dataset[:][1]
