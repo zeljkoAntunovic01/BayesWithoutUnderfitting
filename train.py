@@ -37,7 +37,7 @@ def train_sine(model, data, learning_rate = 1e-3, weight_decay = 1e-2, num_epoch
     # Save the trained model
     torch.save(model.state_dict(), save_path)
 
-def train_classifier(model, data, save_path, learning_rate=1e-3, weight_decay=1e-4, num_epochs=10):
+def train_classifier(model, train_data, val_data=None, save_path=None, learning_rate=1e-3, weight_decay=1e-4, num_epochs=10):
     print(f"Using device: {DEVICE}")
     model.to(DEVICE)
 
@@ -48,11 +48,11 @@ def train_classifier(model, data, save_path, learning_rate=1e-3, weight_decay=1e
     model.train()  # Set the model to training mode
 
     for epoch in range(num_epochs):
-        total_loss = 0
-        correct = 0
-        total = 0
+        total_train_loss = 0
+        train_correct = 0
+        train_total = 0
 
-        for images, labels in data:
+        for images, labels in train_data:
             images, labels = images.to(DEVICE), labels.to(DEVICE)
             optimizer.zero_grad()
 
@@ -61,22 +61,46 @@ def train_classifier(model, data, save_path, learning_rate=1e-3, weight_decay=1e
             loss.backward()  # Backpropagation
             optimizer.step()  # Update weights
 
-            total_loss += loss.item()
+            total_train_loss += loss.item()
 
             # Compute training accuracy
             _, predicted = outputs.max(1)
-            total += labels.size(0)
-            correct += predicted.eq(labels).sum().item()
+            train_total += labels.size(0)
+            train_correct += predicted.eq(labels).sum().item()
 
         # Print stats every epoch
-        avg_loss = total_loss / len(data)
-        accuracy = 100.0 * correct / total
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.6f}, Accuracy: {accuracy:.2f}%")
+        avg_train_loss = total_train_loss / len(train_data)
+        train_accuracy = 100.0 * train_correct / train_total
+        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_train_loss:.6f}, Accuracy: {train_accuracy:.2f}%")
 
-    print(f"Final Loss: {avg_loss:.6f}, Final Accuracy: {accuracy:.2f}%")
+        # 🔎 Validation Evaluation
+        if val_data is not None:
+            model.eval()
+            val_loss = 0
+            val_correct = 0
+            val_total = 0
 
-    # Ensure the save directory exists
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            with torch.no_grad():
+                for val_images, val_labels in val_data:
+                    val_images, val_labels = val_images.to(DEVICE), val_labels.to(DEVICE)
+                    val_outputs = model(val_images)
+                    loss = criterion(val_outputs, val_labels)
 
-    # Save the trained model
-    torch.save(model.state_dict(), save_path)
+                    val_loss += loss.item()
+                    _, val_pred = val_outputs.max(1)
+                    val_total += val_labels.size(0)
+                    val_correct += val_pred.eq(val_labels).sum().item()
+
+            avg_val_loss = val_loss / len(val_data)
+            val_acc = 100.0 * val_correct / val_total
+            model.train()
+        print(f"Epoch {epoch+1}/{num_epochs}:\nTrain Loss: {avg_train_loss:.6f}, Train Accuracy: {train_accuracy:.2f}%\nVal Loss: {avg_val_loss:.6f}, Val Accuracy: {val_acc:.2f}%")
+
+    print(f"Final Loss: {avg_train_loss:.6f}, Final Train Accuracy: {train_accuracy:.2f}%\nFinal Val Loss: {avg_val_loss:.6f}, Final Val Accuracy: {val_acc:.2f}%")
+
+    if (save_path):
+        # Ensure the save directory exists
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+        # Save the trained model
+        torch.save(model.state_dict(), save_path)

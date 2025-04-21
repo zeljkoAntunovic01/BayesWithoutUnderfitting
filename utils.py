@@ -484,7 +484,7 @@ def save_metrics_regression(y_test_pred, mean_pred, var_pred, y_test_true, path)
 
     return metrics
 
-def save_metrics_classification(y_test_pred_map, y_test_pred, mean_probs_pred, var_pred, y_test_true, path):
+def save_metrics_classification(y_test_pred_map, mean_probs_pred, y_test_true, path):
     # MAP metrics
     acc_map = compute_accuracy(y_test_true, y_test_pred_map)
     nll_map = compute_classification_nll(y_test_true, y_test_pred_map)

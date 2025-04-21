@@ -2,8 +2,7 @@ Task 2:
 [X] 1. Play with null mask threshold 
 [X] 2. Optimize the MSE sigma factor for the HEssian alculation: H = (1 / sigma) * I 
 [X] 3. Steal the metrics from this paper https://arxiv.org/abs/2106.14806  (dont use the library, steal code instead)
-[] 4. Try to do it on MNIST now an d use the above metrics for comparison #Started
-    -> Shelved for now, no point since I cant visualize anything
+
 Task 3:
 [X] 1. Change the Hessian for the classification (read up on it, it will be idenitity + outer product predicted class probabilities (p @ p.T))
 [X] 2. Implement metrics on the Sine curve first (non classification ones)
@@ -19,6 +18,6 @@ Task 4:
 Task 5:
 [X] 1. Optimize the projections code so that it is vectorized and does not instantiate big matrices (or any matrices)
 [X] 2. Add a condition for convergence such as change in norm < 10e-4 or something
-[] 3. Run on MNIST
+[X] 3. Run on MNIST
 [] 4. Run on CIFAR10
 [] 5. Run on HCP (probably necessary for CIFAR10)
