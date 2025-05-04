@@ -6,3 +6,6 @@ raw_data/
 
 # Ignore saved models
 results/models/
+
+# Ignore venv
+venv/
