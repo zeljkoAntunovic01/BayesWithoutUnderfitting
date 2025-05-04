@@ -3,32 +3,35 @@ import torch.nn.functional as F
 import torch
 import numpy as np
 
-class MNIST_Net(nn.Module):
+class CIFAR10_Net(nn.Module):
     def __init__(self):
-        super(MNIST_Net, self).__init__()
+        super(CIFAR10_Net, self).__init__()
         self.convolutional = nn.Sequential(
-                nn.Conv2d(in_channels=1, out_channels=8, kernel_size=(3,3), stride=1, padding=1),
-                nn.ReLU(),
-                nn.Conv2d(in_channels=8, out_channels=8, kernel_size=(3,3), stride=1, padding=1),
-                nn.ReLU(),
-                nn.Dropout(p=0.1),
-                nn.MaxPool2d(kernel_size=(2,2)),
-                nn.Conv2d(in_channels=8, out_channels=16, kernel_size=(3,3), stride=1, padding=1),
-                nn.ReLU(),
-                nn.Conv2d(in_channels=16, out_channels=16, kernel_size=(3,3), stride=1, padding=1),
-                nn.ReLU(),
-                nn.Dropout(p=0.1))
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=1),  # 32x32 -> 32x32
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),  # 32x32 -> 32x32
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),  # 32x32 -> 16x16
+            nn.Dropout(p=0.25),
+
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),  # 16x16 -> 16x16
+            nn.ReLU(),
+            nn.Conv2d(128, 128, kernel_size=3, padding=1),  # 16x16 -> 16x16
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),  # 16x16 -> 8x8
+            nn.Dropout(p=0.25),
+        )
 
         self.fully_connected = nn.Sequential(
-                nn.Linear(14*14*16, 500),
-                nn.ReLU(),
-                nn.Dropout(p=0.1),
-                nn.Linear(500, 10))
+            nn.Linear(8*8*128, 256),
+            nn.ReLU(),
+            nn.Dropout(p=0.5),
+            nn.Linear(256, 10)
+        )
 
     def forward(self, x):
         x = self.convolutional(x)
-        # Reshape x so it becomes flat, except for the first dimension (which is the minibatch)
-        x = x.view(x.size(0), -1)
+        x = x.view(x.size(0), -1)  # Flatten
         x = self.fully_connected(x)
         return x
     
@@ -37,7 +40,7 @@ def bayesian_prediction(model, theta_samples, test_loader):
     Makes Bayesian predictions by averaging over posterior samples for a classification model (MNIST).
 
     Args:
-        model (torch.nn.Module): Neural network model (e.g., MNIST_Net).
+        model (torch.nn.Module): Neural network model (e.g., CIFAR10_Net).
         theta_samples (list of torch.Tensor): List of sampled parameter tensors.
         test_loader (torch.utils.data.DataLoader): DataLoader for test data.
 

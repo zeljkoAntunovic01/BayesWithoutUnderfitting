@@ -71,7 +71,6 @@ def train_classifier(model, train_data, val_data=None, save_path=None, learning_
         # Print stats every epoch
         avg_train_loss = total_train_loss / len(train_data)
         train_accuracy = 100.0 * train_correct / train_total
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_train_loss:.6f}, Accuracy: {train_accuracy:.2f}%")
 
         # 🔎 Validation Evaluation
         if val_data is not None:
