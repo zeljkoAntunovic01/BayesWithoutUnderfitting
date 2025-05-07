@@ -2,39 +2,35 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 import numpy as np
+from torchvision import models
+from torchvision.models import ResNet18_Weights
 
 class CIFAR10_Net(nn.Module):
-    def __init__(self):
+    def __init__(self, fine_tuning: bool = True, num_classes: int = 10):
+        """
+        Initializes the pre-trained ResNet18Model with specified arguments.
+        Args:
+            fine_tuning (bool): If True, freezes convolutional layer weights (fine-tuning mode).
+            num_classes (int): Number of classes for the output layer.
+        """
         super(CIFAR10_Net, self).__init__()
-        self.convolutional = nn.Sequential(
-            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=1),  # 32x32 -> 32x32
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),  # 32x32 -> 32x32
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),  # 32x32 -> 16x16
-            nn.Dropout(p=0.25),
 
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),  # 16x16 -> 16x16
-            nn.ReLU(),
-            nn.Conv2d(128, 128, kernel_size=3, padding=1),  # 16x16 -> 16x16
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),  # 16x16 -> 8x8
-            nn.Dropout(p=0.25),
-        )
+        self.model = models.resnet18(weights=ResNet18_Weights.IMAGENET1K_V1, progress=True)
 
-        self.fully_connected = nn.Sequential(
-            nn.Linear(8*8*128, 256),
-            nn.ReLU(),
-            nn.Dropout(p=0.5),
-            nn.Linear(256, 10)
-        )
+        # Modify for CIFAR-10 input size (32x32)
+        self.model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.model.maxpool = nn.Identity()  # Remove 2x2 maxpool
+
+        if fine_tuning:
+            for param in self.model.parameters():
+                param.requires_grad = False
+
+        num_features = self.model.fc.in_features
+        self.model.fc = nn.Linear(num_features, num_classes)
 
     def forward(self, x):
-        x = self.convolutional(x)
-        x = x.view(x.size(0), -1)  # Flatten
-        x = self.fully_connected(x)
-        return x
-    
+        return self.model(x)
+
 def bayesian_prediction(model, theta_samples, test_loader):
     """
     Makes Bayesian predictions by averaging over posterior samples for a classification model (MNIST).

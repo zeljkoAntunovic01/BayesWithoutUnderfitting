@@ -44,6 +44,7 @@ def train_classifier(model, train_data, val_data=None, save_path=None, learning_
     # Loss function for classification
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1) 
 
     model.train()  # Set the model to training mode
 
@@ -93,6 +94,8 @@ def train_classifier(model, train_data, val_data=None, save_path=None, learning_
             avg_val_loss = val_loss / len(val_data)
             val_acc = 100.0 * val_correct / val_total
             model.train()
+            
+        scheduler.step()
         print(f"Epoch {epoch+1}/{num_epochs}:\nTrain Loss: {avg_train_loss:.6f}, Train Accuracy: {train_accuracy:.2f}%\nVal Loss: {avg_val_loss:.6f}, Val Accuracy: {val_acc:.2f}%")
 
     print(f"Final Loss: {avg_train_loss:.6f}, Final Train Accuracy: {train_accuracy:.2f}%\nFinal Val Loss: {avg_val_loss:.6f}, Final Val Accuracy: {val_acc:.2f}%")

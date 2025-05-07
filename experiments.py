@@ -163,7 +163,7 @@ def run_alternated_projections_CIFAR10_experiment(val_split=1.0/6.0):
     ])
 
 
-    """ # FOR ACTUAL RUN
+    # FOR ACTUAL RUN
     full_train = datasets.CIFAR10(root='raw_data', train=True, download=True)
     # Create index split
     val_size = int(val_split * len(full_train))
@@ -172,9 +172,9 @@ def run_alternated_projections_CIFAR10_experiment(val_split=1.0/6.0):
     # Apply transforms to subsets via Subset and transform overrides
     train_dataset = Subset(datasets.CIFAR10(root='raw_data', train=True, transform=train_transform), train_indices)
     val_dataset = Subset(datasets.CIFAR10(root='raw_data', train=True, transform=test_transform), val_indices)
-    test_dataset = datasets.CIFAR10(root='raw_data', train=False, download=True, transform=test_transform) """
+    test_dataset = datasets.CIFAR10(root='raw_data', train=False, download=True, transform=test_transform)
 
-     # FOR TESTING RUN:
+    """ # FOR TESTING RUN:
     # Load full dataset without transform just to split
     full_train = datasets.CIFAR10(root='raw_data', train=True, download=True)
     full_test = datasets.CIFAR10(root='raw_data', train=False, download=True)
@@ -194,14 +194,14 @@ def run_alternated_projections_CIFAR10_experiment(val_split=1.0/6.0):
     test_dataset = Subset(
         datasets.CIFAR10(root='raw_data', train=False, transform=test_transform),
         test_indices
-    )
+    ) """
 
 
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
-    model = CIFAR10_Net()
+    model = CIFAR10_Net(fine_tuning=False)
     if not os.path.exists(CIFAR10_MODEL_PATH):
         train_classifier(model=model, train_data=train_loader, val_data=val_loader, save_path=CIFAR10_MODEL_PATH)
     else:
