@@ -94,12 +94,10 @@ def run_alternated_projections_MNIST_experiment(val_split=1.0/6.0):
     # FOR ACTUAL RUN
     """     # Load full dataset once with *no* transform
     full_train = datasets.MNIST(root='raw_data', train=True, download=True)
-
     # Create index split
     val_size = int(val_split * len(full_train))
     train_size = len(full_train) - val_size
     train_indices, val_indices = random_split(range(len(full_train)), [train_size, val_size])
-
     # Apply transforms to subsets via Subset and transform overrides
     train_dataset = Subset(datasets.MNIST(root='raw_data', train=True, transform=train_transform), train_indices)
     val_dataset = Subset(datasets.MNIST(root='raw_data', train=True, transform=test_transform), val_indices)
@@ -107,15 +105,12 @@ def run_alternated_projections_MNIST_experiment(val_split=1.0/6.0):
 
 
     # FOR TESTING RUN:
-    # Load full dataset without transform just to split
     full_train = datasets.MNIST(root='raw_data', train=True, download=True)
     full_test = datasets.MNIST(root='raw_data', train=False, download=True)
-
     # Get fixed number of samples
-    train_indices = random.sample(range(len(full_train)), 100)
-    val_indices = random.sample(list(set(range(len(full_train))) - set(train_indices)), 4)
-    test_indices = random.sample(range(len(full_test)), 4)
-
+    train_indices = random.sample(range(len(full_train)), 1000)
+    val_indices = random.sample(list(set(range(len(full_train))) - set(train_indices)), 400)
+    test_indices = random.sample(range(len(full_test)), 400)
     # Wrap subsets with transforms
     train_dataset = Subset(
         datasets.MNIST(root='raw_data', train=True, transform=train_transform),

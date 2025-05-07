@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from metrics import (
     compute_accuracy, compute_brier_score, compute_classification_ece_mce, compute_classification_nll, compute_confidence, compute_coverage, compute_multiclass_auroc, compute_predictive_entropy, compute_regression_ece, compute_regression_nll, compute_rmse, compute_sharpness
 )
-from torch.autograd.functional import jvp, vjp
+from torch.func import vmap, jvp, vjp
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from torch.func import functional_call
 
@@ -296,30 +296,44 @@ def vector_to_named_parameters(vec, model):
         pointer += num_params
     return param_dict
 
-def compute_loss_kernel_vp(loss_fn, model_fn, x, y, params, w):
+def compute_loss_kernel_vp_vmap(loss_fn, model_fn, x, y, params, W):  # W: (B, B)
+    """
+    Vectorized version: computes JJᵗ W using vmap over rows of W.
+    Each row of W is a vector w_i for computing JJᵗ w_i.
+    """
     def loss_vector(params_vec):
-        out = model_fn(params_vec, x)
-        return loss_fn(out, y, reduction='none')  # shape: (B,)
+        if (isinstance(params_vec, tuple)):
+            (params_vec,) = params_vec  # Unpack the tuple that is sent to VJP call as (params,)
+            print("PARAM VEC IS A TUPLE")
+        else:
+            print("PARAM VEC IS NOT A TUPLE")
+        out = model_fn(params_vec, x)  # (B, C)
+        return loss_fn(out, y, reduction='none')  # (B,)
 
-    # VJP: Jᵗ w
-    _, Jt_w, = vjp(loss_vector, (params,), v=w)
+    # It is fixed because it depends on the loss function and model, not on the W input
+    _, vjp_fun = vjp(loss_vector, (params,))
+    # Compute v = Jᵗ w_row for each w_row in W (VJP)
+    Jt_W = vmap(lambda w_row: vjp_fun(w_row)[0])(W)  # tuple((B, P),)
+    Jt_W = Jt_W[0] # Unpack the tuple, it is a tuple because we send params as a tuple to VJP call
 
-    # JVP: J(Jᵗ w)
-    _, JJt_w = jvp(loss_vector, (params,), Jt_w)
-    return JJt_w
+    # Now J(Jᵗ w_i) via JVP for each v_i = Jᵗ w_i
+    def jvp_fn(v_i):
+        #(v_i,) = v_i  # Unpack the tuple that is sent to JVP call as (v_i,)
+        assert isinstance(v_i, torch.Tensor), f"Expected a tensor, got {type(v_i)}"
+        assert isinstance(params, torch.Tensor), f"Expected a tensor, got {type(params)}"
+        _, JJt_wi = jvp(loss_vector, (params,), (v_i,))
+        return JJt_wi
+
+    JJt_W = vmap(jvp_fn)(Jt_W)  # (B, B)
+    return JJt_W
 
 @torch.no_grad()
 def precompute_loss_ggn_inverse(model_fn, loss_fn, xb, yb, params, damping=1e-3):
     B = xb.shape[0]
-
-    def kvp(w):  # Function: w ↦ JJᵗ w
-        return compute_loss_kernel_vp(loss_fn, model_fn, xb, yb, params, w)
-
     I = torch.eye(B, device=xb.device)
-    JJt_rows = [kvp(I[i]) for i in range(B)]
-    JJt = torch.stack(JJt_rows, dim=0).detach()
 
-    JJt += damping * torch.eye(B, device=xb.device)
+    JJt = compute_loss_kernel_vp_vmap(loss_fn, model_fn, xb, yb, params, I)
+    JJt = JJt.detach() + damping * torch.eye(B, device=xb.device)
 
     eigvals, eigvecs = torch.linalg.eigh(JJt)
     threshold = 1e-3
@@ -417,12 +431,16 @@ def alternating_projections_qloss_classifier(
     precompute_ggn_eigvecs_time_start = time.time()
     print("🔄 Precomputing GGN eigenvectors...")
     precomputed_eigens = []
+    num_data = len(dataset)
+    counter = 0
     for xb, yb in loader:
         xb, yb = xb.to(device), yb.to(device)
         eigvecs, inv_eigvals = precompute_loss_ggn_inverse(
             model_fn=model_fn, loss_fn=loss_fn, xb=xb, yb=yb, params=theta_map
         )
         precomputed_eigens.append((xb, yb, eigvecs, inv_eigvals))
+        counter += 1
+        print(f"Precomputed GGN for {counter}/{num_data} batches")
 
     print("✅ Precomputation complete.")
     print(f"Time taken for precomputation: {time.time() - precompute_ggn_eigvecs_time_start:.2f} seconds")
