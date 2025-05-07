@@ -6,9 +6,9 @@ from torch.utils.data import DataLoader
 from metrics import (
     compute_accuracy, compute_brier_score, compute_classification_ece_mce, compute_classification_nll, compute_confidence, compute_coverage, compute_multiclass_auroc, compute_predictive_entropy, compute_regression_ece, compute_regression_nll, compute_rmse, compute_sharpness
 )
-from torch.func import vmap, jvp, vjp
+from torch.func import vmap, jvp, vjp, functional_call
+from torch.utils._pytree import tree_flatten, tree_unflatten
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
-from torch.func import functional_call
 
 def compute_model_jacobian_params(model, x_train):
     """
@@ -287,40 +287,22 @@ def alternating_projections_qproj_classifier(
     print("\n🎉 All posterior samples generated.")
     return samples
 
-def vector_to_named_parameters(vec, model):
-    param_dict = {}
-    pointer = 0
-    for name, param in model.named_parameters():
-        num_params = param.numel()
-        param_dict[name] = vec[pointer:pointer + num_params].view_as(param)
-        pointer += num_params
-    return param_dict
-
-def compute_loss_kernel_vp_vmap(loss_fn, model_fn, x, y, params, W):  # W: (B, B)
+def compute_loss_kernel_vp_vmap(loss_fn, model, x, y, params, W):  # W: (B, B)
     """
     Vectorized version: computes JJᵗ W using vmap over rows of W.
     Each row of W is a vector w_i for computing JJᵗ w_i.
     """
     def loss_vector(params_vec):
-        if (isinstance(params_vec, tuple)):
-            (params_vec,) = params_vec  # Unpack the tuple that is sent to VJP call as (params,)
-            print("PARAM VEC IS A TUPLE")
-        else:
-            print("PARAM VEC IS NOT A TUPLE")
-        out = model_fn(params_vec, x)  # (B, C)
+        out = functional_call(model, params_vec, (x,))  # (B, C)
         return loss_fn(out, y, reduction='none')  # (B,)
 
     # It is fixed because it depends on the loss function and model, not on the W input
-    _, vjp_fun = vjp(loss_vector, (params,))
+    _, vjp_fun = vjp(loss_vector, params)
     # Compute v = Jᵗ w_row for each w_row in W (VJP)
     Jt_W = vmap(lambda w_row: vjp_fun(w_row)[0])(W)  # tuple((B, P),)
-    Jt_W = Jt_W[0] # Unpack the tuple, it is a tuple because we send params as a tuple to VJP call
 
     # Now J(Jᵗ w_i) via JVP for each v_i = Jᵗ w_i
     def jvp_fn(v_i):
-        #(v_i,) = v_i  # Unpack the tuple that is sent to JVP call as (v_i,)
-        assert isinstance(v_i, torch.Tensor), f"Expected a tensor, got {type(v_i)}"
-        assert isinstance(params, torch.Tensor), f"Expected a tensor, got {type(params)}"
         _, JJt_wi = jvp(loss_vector, (params,), (v_i,))
         return JJt_wi
 
@@ -328,11 +310,11 @@ def compute_loss_kernel_vp_vmap(loss_fn, model_fn, x, y, params, W):  # W: (B, B
     return JJt_W
 
 @torch.no_grad()
-def precompute_loss_ggn_inverse(model_fn, loss_fn, xb, yb, params, damping=1e-3):
+def precompute_loss_ggn_inverse(model, loss_fn, xb, yb, params, damping=1e-3):
     B = xb.shape[0]
     I = torch.eye(B, device=xb.device)
 
-    JJt = compute_loss_kernel_vp_vmap(loss_fn, model_fn, xb, yb, params, I)
+    JJt = compute_loss_kernel_vp_vmap(loss_fn, model, xb, yb, params, I)
     JJt = JJt.detach() + damping * torch.eye(B, device=xb.device)
 
     eigvals, eigvecs = torch.linalg.eigh(JJt)
@@ -343,7 +325,7 @@ def precompute_loss_ggn_inverse(model_fn, loss_fn, xb, yb, params, damping=1e-3)
     return eigvecs, inv_eigvals
 
 def project_delta_matrix_free(
-    model_fn,
+    model,
     xb,
     yb,
     delta,
@@ -352,29 +334,37 @@ def project_delta_matrix_free(
     loss_fn,
     theta
 ):
-    def batch_loss(params_vec):
-        out = model_fn(params_vec, xb)
+    def batch_loss(params):
+        out = functional_call(model, params, (xb,))
         return loss_fn(out, yb, reduction='none')  # (B,)
-
+    
     # JVP: J · delta
-    _, Jv = jvp(batch_loss, (theta,), (delta,))  # (B,)
+    _, Jv_dict = jvp(batch_loss, (theta,), (delta,))  # (B,)
+    flat_Jv, _ = tree_flatten(Jv_dict)   # list of tensors, P total
 
-    assert Jv.shape == (xb.shape[0],), f"Expected Jv shape ({xb.shape[0]},), got {Jv.shape}"
+    Jv = torch.cat([t.flatten() for t in flat_Jv])  # Shape: (P,), Tensor
 
     # Low-rank solve: V Λ⁻¹ Vᵗ Jv
     JJt_inv_Jv = eigvecs.T @ Jv            # (r,)
     JJt_inv_Jv = eigvecs @ (JJt_inv_Jv * inv_eigvals)  # (B,)
 
     # VJP: Jᵗ · v
-    _, Jt_JJt_inv_Jv = vjp(batch_loss, theta, JJt_inv_Jv)
+    _, vjp_fun = vjp(batch_loss, theta)
+    Jt_JJt_inv_Jv_dict = vjp_fun(JJt_inv_Jv)[0]
 
-    return delta - Jt_JJt_inv_Jv
+    # Projected delta: delta - Jᵗ(JJt⁻¹ Jv)
+    projected_delta = {
+        k: delta[k] - Jt_JJt_inv_Jv_dict[k]
+        for k in delta
+    }
 
-def build_projection_operator(model_fn, loss_fn, theta_map, precomputed_eigens):
+    return projected_delta
+
+def build_projection_operator(model, loss_fn, theta_map, precomputed_eigens):
     def project_fn(delta):
         for xb, yb, eigvecs, inv_eigvals in precomputed_eigens:
             delta = project_delta_matrix_free(
-                model_fn=model_fn,
+                model=model,
                 xb=xb,
                 yb=yb,
                 delta=delta,
@@ -386,16 +376,30 @@ def build_projection_operator(model_fn, loss_fn, theta_map, precomputed_eigens):
         return delta
     return project_fn
 
-def estimate_trace_hutchinson(project_fn, P, K=10):
+@torch.no_grad()
+def estimate_trace_hutchinson(projection_fn, P, K, param_shapes, device):
     trace_estimates = []
+    numels = [torch.tensor(shape).prod().item() for shape in param_shapes.values()]
+
     for _ in range(K):
-        v = torch.randn(P)  # standard normal vector
-        proj_v = project_fn(v)
+        v = torch.randn(P, device=device)  # standard normal vector
+        v_split = list(torch.split(v, numels))
+
+        # Reshape each piece to match the original shape
+        v_struct_dict = {
+            name: part.view(shape)
+            for part, (name, shape) in zip(v_split, param_shapes.items())
+        }
+
+        proj_v_structured = projection_fn(v_struct_dict)
+        proj_v_flat, _ = tree_flatten(proj_v_structured)
+        proj_v = torch.cat([x.flatten() for x in proj_v_flat]).to(device)
+
         trace_estimates.append(v.dot(proj_v).item())  # v^T (UU^T) v
     return sum(trace_estimates) / K
 
 def alternating_projections_qloss_classifier(
-    model, dataset, alpha=None, num_samples=100, max_iters=100, rel_tol=1e-4, batch_size=32
+    model, dataset, alpha=None, num_samples=100, max_iters=3, rel_tol=1e-4, batch_size=32
 ):
     """
     Samples from the projected posterior using alternating projections (q_loss),
@@ -417,36 +421,40 @@ def alternating_projections_qloss_classifier(
     model.eval()
 
     P = sum(p.numel() for p in model.parameters())
-    theta_map = torch.nn.utils.parameters_to_vector(model.parameters()).detach()
+    theta_map = dict(model.named_parameters())
+    param_shapes = {name: param.shape for name, param in theta_map.items()}
+    flat_theta, theta_spec = tree_flatten(theta_map)
+    theta_tensor = torch.cat([t.flatten() for t in flat_theta])
+    numels = [p.numel() for p in flat_theta]
+
+    delta = tree_unflatten(
+        list(torch.randn(P, device=device).split(numels)), theta_spec
+    )
     
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
     samples = []
     loss_fn = torch.nn.functional.cross_entropy
-
-    def model_fn(params_vec, x_batch):
-        param_dict = vector_to_named_parameters(params_vec, model)
-        return functional_call(model, param_dict, (x_batch,))
-
+    
     # Precompute GGN eigenvectors (matrix-free)
     precompute_ggn_eigvecs_time_start = time.time()
     print("🔄 Precomputing GGN eigenvectors...")
     precomputed_eigens = []
-    num_data = len(dataset)
-    counter = 0
+    #num_batches = len(dataset) // batch_size
+    #counter = 0
     for xb, yb in loader:
         xb, yb = xb.to(device), yb.to(device)
         eigvecs, inv_eigvals = precompute_loss_ggn_inverse(
-            model_fn=model_fn, loss_fn=loss_fn, xb=xb, yb=yb, params=theta_map
+            model=model, loss_fn=loss_fn, xb=xb, yb=yb, params=theta_map
         )
         precomputed_eigens.append((xb, yb, eigvecs, inv_eigvals))
-        counter += 1
-        print(f"Precomputed GGN for {counter}/{num_data} batches")
+        #counter += 1
+        #print(f"Precomputed GGN for {counter}/{num_batches} batches")
 
     print("✅ Precomputation complete.")
     print(f"Time taken for precomputation: {time.time() - precompute_ggn_eigvecs_time_start:.2f} seconds")
 
     projection_fn = build_projection_operator(
-        model_fn=model_fn,
+        model=model,
         loss_fn=loss_fn,
         theta_map=theta_map,
         precomputed_eigens=precomputed_eigens
@@ -455,29 +463,42 @@ def alternating_projections_qloss_classifier(
     if alpha is None:
         alpha_estimation_time_start = time.time()
         print("Calculating Alpha with Hutchinson trace estimation...")
-        P = theta_map.numel()
-        trace_est = estimate_trace_hutchinson(projection_fn, P, K=10)
-        alpha = theta_map.norm().item() ** 2 / (P - trace_est)
+        trace_est = estimate_trace_hutchinson(projection_fn, P, K=10, param_shapes=param_shapes, device=device)
+        alpha = theta_tensor.norm().item() ** 2 / (P - trace_est)
         print(f"📐 Hutchinson trace: {trace_est:.2f} → optimal alpha: {alpha:.4f}")
         print(f"Time taken for alpha estimation: {time.time() - alpha_estimation_time_start:.2f} seconds")
     
     for sample_idx in range(num_samples):
         print(f"\n📦 Sampling (q_loss) {sample_idx + 1}/{num_samples}")
-        delta = torch.randn(P, device=device) / torch.sqrt(torch.tensor(alpha))
+        delta_init = torch.randn(P, device=device) / torch.sqrt(torch.tensor(alpha))
+        delta_split = list(delta_init.split(numels))  # 1D splits
+        delta = {
+            k: t.view(theta_map[k].shape)  # reshape each split to original shape
+            for t, k in zip(delta_split, theta_map.keys())
+        }
 
         for iter_idx in range(max_iters):
-            delta_old = delta.clone()
-            delta = projection_fn(delta)  # Project delta into null space
+            delta_old = delta
+            delta = projection_fn(delta)
 
-            diff = (delta - delta_old).norm()
-            print(f"  🔁 Iter {iter_idx + 1} | Δdelta norm: {diff:.6f} | delta norm: {delta.norm():.4f}")
+            flat_delta_old, _ = tree_flatten(delta_old)
+            flat_delta_new, _ = tree_flatten(delta)
+            delta_new_tensor = torch.cat([t.flatten() for t in flat_delta_new])
+            delta_old_tensor = torch.cat([t.flatten() for t in flat_delta_old])
+
+            diff = (delta_new_tensor - delta_old_tensor).norm()
+            print(f"  🔁 Iter {iter_idx + 1} | Δdelta norm: {diff:.6f} | delta norm: {delta_new_tensor.norm():.4f}")
 
             if diff < rel_tol:
                 print(f"  ✅ Converged at iteration {iter_idx + 1}")
                 break
+        
+        theta_sample_dict = {k: theta_map[k] + delta[k] for k in delta}
 
-        samples.append(theta_map + delta.detach().clone())
-        print(f"✅ Done (q_loss) {sample_idx + 1}, norm: {delta.norm().item():.4f}")
+        # Flatten it back to match theta_map
+        flat_sample, _ = tree_flatten(theta_sample_dict)
+        samples.append(torch.cat([x.flatten() for x in flat_sample]))
+        print(f"✅ Done (q_loss) {sample_idx + 1}, norm: {delta_new_tensor.norm().item():.4f}")
 
     print("\n🎉 All q_loss samples complete.")
     return samples
