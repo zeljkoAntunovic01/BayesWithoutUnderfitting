@@ -13,4 +13,4 @@
 module load python3/3.11.9
 
 source /zhome/4c/1/203176/BayesWithoutUnderfitting/venv/bin/activate
-python /zhome/4c/1/203176/BayesWithoutUnderfitting/main.py
+python /zhome/4c/1/203176/BayesWithoutUnderfitting/main.py --experiment cifar10

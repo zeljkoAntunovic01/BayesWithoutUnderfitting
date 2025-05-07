@@ -381,7 +381,7 @@ def estimate_trace_hutchinson(project_fn, P, K=10):
     return sum(trace_estimates) / K
 
 def alternating_projections_qloss_classifier(
-    model, dataset, alpha=None, num_samples=100, max_iters=50, rel_tol=1e-3, batch_size=32
+    model, dataset, alpha=None, num_samples=100, max_iters=100, rel_tol=1e-4, batch_size=32
 ):
     """
     Samples from the projected posterior using alternating projections (q_loss),
