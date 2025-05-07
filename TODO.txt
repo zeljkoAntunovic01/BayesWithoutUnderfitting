@@ -21,7 +21,7 @@ Task 5:
 [X] 3. Run on MNIST
 
 Task 6:
-[] 1. HPC run for MNIST and CIFAR10
-[] 2. Alpha estimation via the formula from the paper -> Trace is not easy so we need to figure out a fast way of calclating it
+[X] 1. HPC run for MNIST and CIFAR10
+[X] 2. Alpha estimation via the formula from the paper -> Trace is not easy so we need to figure out a fast way of calclating it
 [] 3. Do Eigenvalue/Eigvecs calculation in parallel for many batches at once, during the precomptuing of them (like JAX does)
-[] 4. AFter hPC run see how long it took and if we need to optimize it more
+[X] 4. AFter hPC run see how long it took and if we need to optimize it more

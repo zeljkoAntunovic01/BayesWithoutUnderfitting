@@ -112,9 +112,9 @@ def run_alternated_projections_MNIST_experiment(val_split=1.0/6.0):
     full_test = datasets.MNIST(root='raw_data', train=False, download=True)
 
     # Get fixed number of samples
-    train_indices = random.sample(range(len(full_train)), 1000)
-    val_indices = random.sample(list(set(range(len(full_train))) - set(train_indices)), 400)
-    test_indices = random.sample(range(len(full_test)), 400)
+    train_indices = random.sample(range(len(full_train)), 100)
+    val_indices = random.sample(list(set(range(len(full_train))) - set(train_indices)), 4)
+    test_indices = random.sample(range(len(full_test)), 4)
 
     # Wrap subsets with transforms
     train_dataset = Subset(

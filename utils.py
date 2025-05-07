@@ -1,4 +1,5 @@
 import json
+import time
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
@@ -355,8 +356,32 @@ def project_delta_matrix_free(
 
     return delta - Jt_JJt_inv_Jv
 
+def build_projection_operator(model_fn, loss_fn, theta_map, precomputed_eigens):
+    def project_fn(delta):
+        for xb, yb, eigvecs, inv_eigvals in precomputed_eigens:
+            delta = project_delta_matrix_free(
+                model_fn=model_fn,
+                xb=xb,
+                yb=yb,
+                delta=delta,
+                eigvecs=eigvecs,
+                inv_eigvals=inv_eigvals,
+                loss_fn=loss_fn,
+                theta=theta_map
+            )
+        return delta
+    return project_fn
+
+def estimate_trace_hutchinson(project_fn, P, K=10):
+    trace_estimates = []
+    for _ in range(K):
+        v = torch.randn(P)  # standard normal vector
+        proj_v = project_fn(v)
+        trace_estimates.append(v.dot(proj_v).item())  # v^T (UU^T) v
+    return sum(trace_estimates) / K
+
 def alternating_projections_qloss_classifier(
-    model, dataset, alpha=10.0, num_samples=100, max_iters=50, rel_tol=1e-3, batch_size=32
+    model, dataset, alpha=None, num_samples=100, max_iters=50, rel_tol=1e-3, batch_size=32
 ):
     """
     Samples from the projected posterior using alternating projections (q_loss),
@@ -389,6 +414,8 @@ def alternating_projections_qloss_classifier(
         return functional_call(model, param_dict, (x_batch,))
 
     # Precompute GGN eigenvectors (matrix-free)
+    precompute_ggn_eigvecs_time_start = time.time()
+    print("🔄 Precomputing GGN eigenvectors...")
     precomputed_eigens = []
     for xb, yb in loader:
         xb, yb = xb.to(device), yb.to(device)
@@ -397,25 +424,32 @@ def alternating_projections_qloss_classifier(
         )
         precomputed_eigens.append((xb, yb, eigvecs, inv_eigvals))
 
+    print("✅ Precomputation complete.")
+    print(f"Time taken for precomputation: {time.time() - precompute_ggn_eigvecs_time_start:.2f} seconds")
+
+    projection_fn = build_projection_operator(
+        model_fn=model_fn,
+        loss_fn=loss_fn,
+        theta_map=theta_map,
+        precomputed_eigens=precomputed_eigens
+    )
+
+    if alpha is None:
+        alpha_estimation_time_start = time.time()
+        print("Calculating Alpha with Hutchinson trace estimation...")
+        P = theta_map.numel()
+        trace_est = estimate_trace_hutchinson(projection_fn, P, K=10)
+        alpha = theta_map.norm().item() ** 2 / (P - trace_est)
+        print(f"📐 Hutchinson trace: {trace_est:.2f} → optimal alpha: {alpha:.4f}")
+        print(f"Time taken for alpha estimation: {time.time() - alpha_estimation_time_start:.2f} seconds")
+    
     for sample_idx in range(num_samples):
         print(f"\n📦 Sampling (q_loss) {sample_idx + 1}/{num_samples}")
         delta = torch.randn(P, device=device) / torch.sqrt(torch.tensor(alpha))
 
         for iter_idx in range(max_iters):
             delta_old = delta.clone()
-            for xb, yb, eigvecs, inv_eigvals in precomputed_eigens:
-                xb, yb = xb.to(device), yb.to(device)
-                
-                delta = project_delta_matrix_free(
-                    model_fn=model_fn,
-                    xb=xb,
-                    yb=yb,
-                    delta=delta,
-                    eigvecs=eigvecs,
-                    inv_eigvals=inv_eigvals,
-                    loss_fn=loss_fn,
-                    theta=theta_map
-                )
+            delta = projection_fn(delta)  # Project delta into null space
 
             diff = (delta - delta_old).norm()
             print(f"  🔁 Iter {iter_idx + 1} | Δdelta norm: {diff:.6f} | delta norm: {delta.norm():.4f}")
@@ -429,19 +463,6 @@ def alternating_projections_qloss_classifier(
 
     print("\n🎉 All q_loss samples complete.")
     return samples
-
-def disassemble_data_loader(data_loader):
-    # Collect full data
-    x_list, y_list = [], []
-    for images, labels in data_loader:
-        x_list.append(images)
-        y_list.append(labels)
-
-    # Convert full dataset to tensors
-    x_train = torch.cat(x_list, dim=0)  # Full training images
-    y_train = torch.cat(y_list, dim=0)  # Full training labels
-    
-    return x_train, y_train
 
 def save_metrics_regression(y_test_pred, mean_pred, var_pred, y_test_true, path):
     # MAP metrics
