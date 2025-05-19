@@ -322,7 +322,7 @@ def precompute_loss_ggn_inverse(model, loss_fn, xb, yb, params, damping=1e-3):
     inv_eigvals = 1.0 / eigvals
     inv_eigvals[eigvals < threshold] = 0.0
 
-    return eigvecs, inv_eigvals
+    return eigvecs.cpu(), inv_eigvals.cpu()
 
 def project_delta_matrix_free(
     model,
@@ -342,7 +342,7 @@ def project_delta_matrix_free(
     _, Jv_dict = jvp(batch_loss, (theta,), (delta,))  # (B,)
     flat_Jv, _ = tree_flatten(Jv_dict)   # list of tensors, P total
 
-    Jv = torch.cat([t.flatten() for t in flat_Jv])  # Shape: (P,), Tensor
+    Jv = torch.cat([t.flatten() for t in flat_Jv]).detach().cpu() # Shape: (P,), Tensor
 
     # Low-rank solve: V Λ⁻¹ Vᵗ Jv
     JJt_inv_Jv = eigvecs.T @ Jv            # (r,)
@@ -351,6 +351,8 @@ def project_delta_matrix_free(
     # VJP: Jᵗ · v
     _, vjp_fun = vjp(batch_loss, theta)
     Jt_JJt_inv_Jv_dict = vjp_fun(JJt_inv_Jv)[0]
+    
+    del vjp_fun  # Free up memory
 
     # Projected delta: delta - Jᵗ(JJt⁻¹ Jv)
     projected_delta = {
@@ -399,7 +401,7 @@ def estimate_trace_hutchinson(projection_fn, P, K, param_shapes, device):
     return sum(trace_estimates) / K
 
 def alternating_projections_qloss_classifier(
-    model, dataset, alpha=None, num_samples=100, max_iters=100, rel_tol=1e-4, batch_size=64
+    model, dataset, alpha=None, num_samples=100, max_iters=100, rel_tol=1e-3, batch_size=64
 ):
     """
     Samples from the projected posterior using alternating projections (q_loss),
@@ -439,16 +441,12 @@ def alternating_projections_qloss_classifier(
     precompute_ggn_eigvecs_time_start = time.time()
     print("🔄 Precomputing GGN eigenvectors...")
     precomputed_eigens = []
-    #num_batches = len(dataset) // batch_size
-    #counter = 0
     for xb, yb in loader:
         xb, yb = xb.to(device), yb.to(device)
         eigvecs, inv_eigvals = precompute_loss_ggn_inverse(
             model=model, loss_fn=loss_fn, xb=xb, yb=yb, params=theta_map
         )
         precomputed_eigens.append((xb, yb, eigvecs, inv_eigvals))
-        #counter += 1
-        #print(f"Precomputed GGN for {counter}/{num_batches} batches")
 
     print("✅ Precomputation complete.")
     print(f"Time taken for precomputation: {time.time() - precompute_ggn_eigvecs_time_start:.2f} seconds")
@@ -468,9 +466,10 @@ def alternating_projections_qloss_classifier(
         print(f"📐 Hutchinson trace: {trace_est:.2f} → optimal alpha: {alpha:.4f}")
         print(f"Time taken for alpha estimation: {time.time() - alpha_estimation_time_start:.2f} seconds")
     
+    alpha_sqrt_inv = 1.0 / torch.sqrt(torch.tensor(alpha))
     for sample_idx in range(num_samples):
         print(f"\n📦 Sampling (q_loss) {sample_idx + 1}/{num_samples}")
-        delta_init = torch.randn(P, device=device) / torch.sqrt(torch.tensor(alpha))
+        delta_init = torch.randn(P, device=device) * alpha_sqrt_inv
         delta_split = list(delta_init.split(numels))  # 1D splits
         delta = {
             k: t.view(theta_map[k].shape)  # reshape each split to original shape
@@ -480,6 +479,7 @@ def alternating_projections_qloss_classifier(
         for iter_idx in range(max_iters):
             delta_old = delta
             delta = projection_fn(delta)
+            torch.cuda.empty_cache()
 
             flat_delta_old, _ = tree_flatten(delta_old)
             flat_delta_new, _ = tree_flatten(delta)
@@ -497,7 +497,7 @@ def alternating_projections_qloss_classifier(
 
         # Flatten it back to match theta_map
         flat_sample, _ = tree_flatten(theta_sample_dict)
-        samples.append(torch.cat([x.flatten() for x in flat_sample]))
+        samples.append(torch.cat([x.flatten().cpu() for x in flat_sample]))
         print(f"✅ Done (q_loss) {sample_idx + 1}, norm: {delta_new_tensor.norm().item():.4f}")
 
     print("\n🎉 All q_loss samples complete.")
