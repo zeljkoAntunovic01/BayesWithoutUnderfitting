@@ -27,6 +27,6 @@ Task 6:
 [X] 4. AFter hPC run see how long it took and if we need to optimize it more
 
 Task 7:
-[] 1. Set alpha to very high just to see if MNIST and CIFAR10 will work (say alpha = 50)
+[] 1. Debug the alpha, sometimes it is negative
 [] 2. Debug the alternating projections for MNIST and CIFAR10
 [] 3. Read the paper again and find another use case/dataset to use the algorithm on

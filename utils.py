@@ -397,7 +397,8 @@ def estimate_trace_hutchinson(projection_fn, P, K, param_shapes, device):
         proj_v_flat, _ = tree_flatten(proj_v_structured)
         proj_v = torch.cat([x.flatten() for x in proj_v_flat]).to(device)
 
-        trace_estimates.append(v.dot(proj_v).item())  # v^T (UU^T) v
+        uu_v = v - proj_v  # This isolates UUᵀ v
+        trace_estimates.append(v.dot(uu_v).item())  # vᵀ (UUᵀ) v
     return sum(trace_estimates) / K
 
 def alternating_projections_qloss_classifier(
@@ -429,10 +430,6 @@ def alternating_projections_qloss_classifier(
     theta_tensor = torch.cat([t.flatten() for t in flat_theta])
     numels = [p.numel() for p in flat_theta]
 
-    delta = tree_unflatten(
-        list(torch.randn(P, device=device).split(numels)), theta_spec
-    )
-    
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
     samples = []
     loss_fn = torch.nn.functional.cross_entropy
@@ -462,7 +459,8 @@ def alternating_projections_qloss_classifier(
         alpha_estimation_time_start = time.time()
         print("Calculating Alpha with Hutchinson trace estimation...")
         trace_est = estimate_trace_hutchinson(projection_fn, P, K=10, param_shapes=param_shapes, device=device)
-        alpha = theta_tensor.norm().item() ** 2 / (P - trace_est)
+        denom = max(P - trace_est, 1.0)  # Clamp to avoid negative or tiny values
+        alpha = theta_tensor.norm().item() ** 2 / denom
         print(f"📐 Hutchinson trace: {trace_est:.2f} → optimal alpha: {alpha:.4f}")
         print(f"Time taken for alpha estimation: {time.time() - alpha_estimation_time_start:.2f} seconds")
     
@@ -492,7 +490,7 @@ def alternating_projections_qloss_classifier(
             if diff < rel_tol:
                 print(f"  ✅ Converged at iteration {iter_idx + 1}")
                 break
-        
+
         theta_sample_dict = {k: theta_map[k] + delta[k] for k in delta}
 
         # Flatten it back to match theta_map
