@@ -88,7 +88,7 @@ def loss_posterior_inference_2D_classifier_alt(model, train_dataset, test_datase
 def loss_posterior_inference_MNIST_alt(model, train_dataset, test_dataset):
     theta_map = torch.nn.utils.parameters_to_vector(model.parameters()).detach()
     num_samples = 5
-    theta_samples = alternating_projections_qloss_classifier(model, train_dataset, num_samples=num_samples)
+    theta_samples = alternating_projections_qloss_classifier(model, train_dataset, alpha=10.0, num_samples=num_samples)
 
     # Save original parameters
     original_params = torch.nn.utils.parameters_to_vector(model.parameters()).clone()
@@ -131,7 +131,7 @@ def loss_posterior_inference_MNIST_alt(model, train_dataset, test_dataset):
 def loss_posterior_inference_CIFAR10_alt(model, train_dataset, test_dataset):
     theta_map = torch.nn.utils.parameters_to_vector(model.parameters()).detach()
     num_samples = 5
-    theta_samples = alternating_projections_qloss_classifier(model, train_dataset, num_samples=num_samples)
+    theta_samples = alternating_projections_qloss_classifier(model, train_dataset, alpha=10.0, num_samples=num_samples)
 
     # Save original parameters
     original_params = torch.nn.utils.parameters_to_vector(model.parameters()).clone()
