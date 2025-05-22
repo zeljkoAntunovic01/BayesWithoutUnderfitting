@@ -298,12 +298,14 @@ def compute_loss_kernel_vp_vmap(loss_fn, model, x, y, params, W):  # W: (B, B)
 
     # It is fixed because it depends on the loss function and model, not on the W input
     _, vjp_fun = vjp(loss_vector, params)
-    # Compute v = Jᵗ w_row for each w_row in W (VJP)
-    Jt_W = vmap(lambda w_row: vjp_fun(w_row)[0])(W)  # tuple((B, P),)
+    with torch.no_grad():
+        # Compute v = Jᵗ w_row for each w_row in W (VJP)
+        Jt_W = vmap(lambda w_row: vjp_fun(w_row)[0])(W)  # tuple((B, P),)
 
     # Now J(Jᵗ w_i) via JVP for each v_i = Jᵗ w_i
     def jvp_fn(v_i):
-        _, JJt_wi = jvp(loss_vector, (params,), (v_i,))
+        with torch.no_grad():
+            _, JJt_wi = jvp(loss_vector, (params,), (v_i,))
         return JJt_wi
 
     JJt_W = vmap(jvp_fn)(Jt_W)  # (B, B)
@@ -454,7 +456,7 @@ def alternating_projections_qloss_classifier(
     print("🔄 Precomputing GGN eigenvectors...")
 
     # Use a subset of batches for projection
-    subset_batches = 50  # Or set dynamically based on dataset size
+    subset_batches = 30  # Or set dynamically based on dataset size
     subset_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     precomputed_eigens = []

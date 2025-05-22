@@ -1,0 +1,7 @@
+Loaded dependency [python3/3.11.9]: sqlite3/3.45.3
+Loaded dependency [python3/3.11.9]: gcc/12.3.0-binutils-2.40
+Loaded module: python3/3.11.9
+
+Loading python3/3.11.9
+  Loading requirement: sqlite3/3.45.3 gcc/12.3.0-binutils-2.40
+/zhome/4c/1/203176/.lsbatch/1747877923.25036204.shell: line 16: 1364313 Killed                  python /zhome/4c/1/203176/BayesWithoutUnderfitting/main.py --experiment mnist > /zhome/4c/1/203176/BayesWithoutUnderfitting/hpc_logs/OUTPUT_FILE_MNIST_ALPHA_10.log 2>&1

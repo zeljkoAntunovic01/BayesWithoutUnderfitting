@@ -30,3 +30,8 @@ Task 7:
 [] 1. Debug the alpha, sometimes it is negative
 [] 2. Debug the alternating projections for MNIST and CIFAR10
 [] 3. Read the paper again and find another use case/dataset to use the algorithm on
+
+Task 8:
+[] 1. Calculate some (sum_of_eigen = eigenvalues.sum()) and then call (sum_of_eigen.backward()) to see if autodif engine will be called.
+If it is called then you know that the JVPs and VJPs are saving computational graphs that are the reason you run out of memory. Do the same test
+with Eigen vectors.
