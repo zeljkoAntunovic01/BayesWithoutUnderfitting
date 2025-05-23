@@ -114,6 +114,7 @@ def run_alternated_projections_MNIST_experiment(val_split=1.0/6.0):
     else:
         model.load_state_dict(torch.load(MNIST_MODEL_PATH))
     
+    model.to(DEVICE)
     model.eval()
 
     loss_posterior_inference_MNIST_alt(model, train_dataset, test_dataset)
@@ -159,6 +160,7 @@ def run_alternated_projections_CIFAR10_experiment(val_split=1.0/6.0):
     else:
         model.load_state_dict(torch.load(CIFAR10_MODEL_PATH))
     
+    model.to(DEVICE)
     model.eval()
 
     loss_posterior_inference_CIFAR10_alt(model, train_dataset, test_dataset)

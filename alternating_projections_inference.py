@@ -90,11 +90,8 @@ def loss_posterior_inference_MNIST_alt(model, train_dataset, test_dataset):
     num_samples = 5
     theta_samples = alternating_projections_qloss_classifier(model, train_dataset, alpha=10.0, num_samples=num_samples)
 
-    # Save original parameters
-    original_params = torch.nn.utils.parameters_to_vector(model.parameters()).clone()
-
     for i in range(len(theta_samples)):
-        print(f"Sample {i} Difference from MAP: {torch.norm(theta_samples[i] - theta_map).item()}")
+        print(f"Sample {i} Difference from MAP: {torch.norm(theta_samples[i].to(DEVICE) - theta_map).item()}")
     
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
     
@@ -116,16 +113,17 @@ def loss_posterior_inference_MNIST_alt(model, train_dataset, test_dataset):
     y_test_true = torch.cat(y_test_true_all, dim=0).numpy()
 
     # Bayesian prediction (Mean, Variance)
-    mean_probs_pred, var_pred = mnistmodel.bayesian_prediction(model, theta_samples, test_loader)
-    
+    with torch.no_grad():
+        original_state = torch.nn.utils.parameters_to_vector(model.parameters()).detach().clone()
+        mean_probs_pred, var_pred = mnistmodel.bayesian_prediction(model, theta_samples, test_loader)
+        torch.nn.utils.vector_to_parameters(original_state, model.parameters())  # Restore immediately
+        
     # Save metrics
     metrics = save_metrics_classification(
         y_test_pred_map, mean_probs_pred,
         y_test_true, f"{METRICS_PATH}MNIST_loss_alt_metrics.json"
     )
-
-    # Restore original MAP parameters
-    torch.nn.utils.vector_to_parameters(original_params, model.parameters())
+    
     model.eval()
 
 def loss_posterior_inference_CIFAR10_alt(model, train_dataset, test_dataset):

@@ -1,3 +1,4 @@
+import gc
 import json
 import time
 import numpy as np
@@ -298,14 +299,13 @@ def compute_loss_kernel_vp_vmap(loss_fn, model, x, y, params, W):  # W: (B, B)
 
     # It is fixed because it depends on the loss function and model, not on the W input
     _, vjp_fun = vjp(loss_vector, params)
-    with torch.no_grad():
-        # Compute v = Jᵗ w_row for each w_row in W (VJP)
-        Jt_W = vmap(lambda w_row: vjp_fun(w_row)[0])(W)  # tuple((B, P),)
+
+    # Compute v = Jᵗ w_row for each w_row in W (VJP)
+    Jt_W = vmap(lambda w_row: vjp_fun(w_row)[0])(W)  # tuple((B, P),)
 
     # Now J(Jᵗ w_i) via JVP for each v_i = Jᵗ w_i
     def jvp_fn(v_i):
-        with torch.no_grad():
-            _, JJt_wi = jvp(loss_vector, (params,), (v_i,))
+        _, JJt_wi = jvp(loss_vector, (params,), (v_i,))
         return JJt_wi
 
     JJt_W = vmap(jvp_fn)(Jt_W)  # (B, B)
@@ -339,6 +339,7 @@ def project_delta_matrix_free(
     loss_fn,
     theta
 ):
+    device = next(model.parameters()).device
     def batch_loss(params):
         out = functional_call(model, params, (xb,))
         return loss_fn(out, yb, reduction='none')  # (B,)
@@ -352,6 +353,7 @@ def project_delta_matrix_free(
     # Low-rank solve: V Λ⁻¹ Vᵗ Jv
     JJt_inv_Jv = eigvecs.T @ Jv            # (r,)
     JJt_inv_Jv = eigvecs @ (JJt_inv_Jv * inv_eigvals)  # (B,)
+    JJt_inv_Jv = JJt_inv_Jv.to(device)
 
     # VJP: Jᵗ · v
     _, vjp_fun = vjp(batch_loss, theta)
@@ -368,11 +370,11 @@ def project_delta_matrix_free(
     return projected_delta
 
 def build_projection_operator(model, loss_fn, theta_map, projection_data, precomputed_eigens):
-    assert len(projection_data) == len(precomputed_eigens), "Mismatch between data and eigenpairs"
+    device = next(model.parameters()).device
 
     def project_fn(delta):
         for (xb, yb), (eigvecs, inv_eigvals) in zip(projection_data, precomputed_eigens):
-            xb, yb = xb.to(next(model.parameters()).device), yb.to(next(model.parameters()).device)
+            xb, yb = xb.to(device), yb.to(device)
             delta = project_delta_matrix_free(
                 model=model,
                 xb=xb,
@@ -417,10 +419,13 @@ def kernel_check(model, delta_dict, theta_dict, x_val, y_val):
     _, Jv_dict = jvp(loss_fn, (theta_dict,), (delta_dict,))
     Jv = torch.cat([t.flatten() for t in tree_flatten(Jv_dict)[0]])
     kernel_norm = Jv.norm().item()
-    return kernel_norm
+    mean_abs = Jv.abs().mean().item()
+    max_abs = Jv.abs().max().item()
+
+    return kernel_norm, mean_abs, max_abs
 
 def alternating_projections_qloss_classifier(
-    model, dataset, alpha=None, num_samples=100, max_iters=50, rel_tol=1e-3, batch_size=64
+    model, dataset, alpha=None, num_samples=100, max_iters=100, rel_tol=1e-3, batch_size=64
 ):
     """
     Samples from the projected posterior using alternating projections (q_loss),
@@ -455,25 +460,26 @@ def alternating_projections_qloss_classifier(
     precompute_ggn_eigvecs_time_start = time.time()
     print("🔄 Precomputing GGN eigenvectors...")
 
-    # Use a subset of batches for projection
-    subset_batches = 30  # Or set dynamically based on dataset size
-    subset_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    projection_data = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
     precomputed_eigens = []
-    projection_data = []  # Store the (xb, yb) used
-    for i, (xb, yb) in enumerate(subset_loader):
-        if i >= subset_batches:
-            break
+    #subset_batches = 3
+    for i, (xb, yb) in enumerate(projection_data):
+        #if i >= subset_batches:
+        #    break
         xb, yb = xb.to(device), yb.to(device)
         eigvecs, inv_eigvals = precompute_loss_ggn_inverse(
             model=model, loss_fn=loss_fn, xb=xb, yb=yb, params=theta_map
         )
-        # NOTE: Do NOT store xb, yb here to save memory
+        torch.cuda.empty_cache()
+
         precomputed_eigens.append((eigvecs.cpu(), inv_eigvals.cpu()))
-        projection_data.append((xb.cpu(), yb.cpu()))  # Save the same batch
     
     print("✅ Precomputation complete.")
     print(f"Time taken for precomputation: {time.time() - precompute_ggn_eigvecs_time_start:.2f} seconds")
+
+    # 🔁 Re-instantiate for fresh iterator
+    projection_data = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
     projection_fn = build_projection_operator(
         model=model,
@@ -493,6 +499,10 @@ def alternating_projections_qloss_classifier(
         print(f"Time taken for alpha estimation: {time.time() - alpha_estimation_time_start:.2f} seconds")
     
     alpha_sqrt_inv = 1.0 / torch.sqrt(torch.tensor(alpha))
+    # Fetch a batch of data to use for kernel check
+    x_val, y_val = next(iter(DataLoader(dataset, batch_size=batch_size)))
+    x_val, y_val = x_val.to(device), y_val.to(device)
+
     for sample_idx in range(num_samples):
         print(f"\n📦 Sampling (q_loss) {sample_idx + 1}/{num_samples}")
         delta_init = torch.randn(P, device=device) * alpha_sqrt_inv
@@ -502,15 +512,15 @@ def alternating_projections_qloss_classifier(
             for t, k in zip(delta_split, theta_map.keys())
         }
 
-        x_val, y_val = projection_data[0]
-        x_val, y_val = x_val.to(device), y_val.to(device)
-        kernel_norm = kernel_check(model, delta, theta_map, x_val, y_val)
-        print(f"🧪 Kernel norm for init delta (‖J⋅δ‖): {kernel_norm:.6f}")
+        kernel_norm, mean_kernel_check, max_kernel_check = kernel_check(model, delta, theta_map, x_val, y_val)
+        print(f"Kernel initial ‖J·δ‖ -> Norm: {kernel_norm:.6f} | Mean: {mean_kernel_check:.6f} | Max: {max_kernel_check:.6f}")
+        
 
         for iter_idx in range(max_iters):
             delta_old = delta
             delta = projection_fn(delta)
             torch.cuda.empty_cache()
+            gc.collect()
 
             flat_delta_old, _ = tree_flatten(delta_old)
             flat_delta_new, _ = tree_flatten(delta)
@@ -521,8 +531,8 @@ def alternating_projections_qloss_classifier(
             print(f"  🔁 Iter {iter_idx + 1} | Δdelta norm: {diff:.6f} | delta norm: {delta_new_tensor.norm():.4f}")
 
             if (iter_idx + 1) % 10 == 0:
-                kernel_norm = kernel_check(model, delta, theta_map, x_val, y_val)
-                print(f"🧪 Kernel norm (‖J⋅δ‖): {kernel_norm:.6f}")
+                kernel_norm, mean_kernel_check, max_kernel_check = kernel_check(model, delta, theta_map, x_val, y_val)
+                print(f"Kernel ‖J·δ‖ at i = {iter_idx+1} -> Norm: {kernel_norm:.6f} | Mean: {mean_kernel_check:.6f} | Max: {max_kernel_check:.6f}")
 
             if diff < rel_tol:
                 print(f"  ✅ Converged at iteration {iter_idx + 1}")
@@ -530,8 +540,8 @@ def alternating_projections_qloss_classifier(
 
         theta_sample_dict = {k: theta_map[k] + delta[k] for k in delta}
 
-        kernel_norm = kernel_check(model, delta, theta_map, x_val, y_val)
-        print(f"🧪Final Kernel norm (‖J⋅δ‖): {kernel_norm:.6f}")
+        kernel_norm, mean_kernel_check, max_kernel_check = kernel_check(model, delta, theta_map, x_val, y_val)
+        print(f"Final Kernel ‖J·δ‖ -> Norm: {kernel_norm:.6f} | Mean: {mean_kernel_check:.6f} | Max: {max_kernel_check:.6f}")
 
         # Flatten it back to match theta_map
         flat_sample, _ = tree_flatten(theta_sample_dict)
