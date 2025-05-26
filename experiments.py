@@ -108,6 +108,32 @@ def run_alternated_projections_MNIST_experiment(val_split=1.0/6.0):
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
+    # FOR TESTING RUN:
+    """full_train = datasets.MNIST(root='raw_data', train=True, download=True)
+    full_test = datasets.MNIST(root='raw_data', train=False, download=True)
+    # Get fixed number of samples
+    train_indices = random.sample(range(len(full_train)), 1000)
+    val_indices = random.sample(list(set(range(len(full_train))) - set(train_indices)), 40)
+    test_indices = random.sample(range(len(full_test)), 40)
+    # Wrap subsets with transforms
+    train_dataset = Subset(
+        datasets.MNIST(root='raw_data', train=True, transform=train_transform),
+        train_indices
+    )
+    val_dataset = Subset(
+        datasets.MNIST(root='raw_data', train=True, transform=test_transform),
+        val_indices
+    )
+    test_dataset = Subset(
+        datasets.MNIST(root='raw_data', train=False, transform=test_transform),
+        test_indices
+    )
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+    """
+    
+
     model = MNIST_Net()
     if not os.path.exists(MNIST_MODEL_PATH):
         train_classifier(model=model, train_data=train_loader, val_data=val_loader, save_path=MNIST_MODEL_PATH)
