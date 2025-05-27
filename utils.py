@@ -329,6 +329,15 @@ def precompute_loss_ggn_inverse(model, loss_fn, xb, yb, params, damping=1e-3):
 
     return eigvecs, inv_eigvals
 
+def precompute_vjp_function(model, loss_fn, xb, yb, theta):
+    def batch_loss(params):
+        out = functional_call(model, params, (xb,))
+        return loss_fn(out, yb, reduction='none')  # (B,)
+    
+    _, vjp_fun = vjp(batch_loss, theta)
+
+    return vjp_fun
+    
 def project_delta_matrix_free(
     model,
     xb,
@@ -337,7 +346,8 @@ def project_delta_matrix_free(
     eigvecs,
     inv_eigvals,
     loss_fn,
-    theta
+    theta,
+    vjp_fun
 ):
     def batch_loss(params):
         out = functional_call(model, params, (xb,))
@@ -356,7 +366,7 @@ def project_delta_matrix_free(
         JJt_inv_Jv = JJt_inv_Jv.detach()
 
         # VJP: Jᵗ · v
-        _, vjp_fun = vjp(batch_loss, theta)
+        #_, vjp_fun = vjp(batch_loss, theta)
         Jt_JJt_inv_Jv_dict = vjp_fun(JJt_inv_Jv)[0]
         del vjp_fun  # Free up memory
 
@@ -368,7 +378,7 @@ def project_delta_matrix_free(
 
     return projected_delta
 
-def build_projection_operator(model, loss_fn, theta_map, projection_data, precomputed_eigens):
+def build_projection_operator(model, loss_fn, theta_map, projection_data, precomputed_eigens, precomputed_vjp_funs):
     device = next(model.parameters()).device
 
     def project_fn(delta):
@@ -385,10 +395,10 @@ def build_projection_operator(model, loss_fn, theta_map, projection_data, precom
                 eigvecs=precomputed_eigens[i][0],
                 inv_eigvals=precomputed_eigens[i][1],
                 loss_fn=loss_fn,
-                theta=theta_map
+                theta=theta_map,
+                vjp_fun = precomputed_vjp_funs[i]
             )
             torch.cuda.empty_cache()
-            gc.collect()
         return delta
     return project_fn
 
@@ -467,6 +477,7 @@ def alternating_projections_qloss_classifier(
     projection_data = list(DataLoader(dataset, batch_size=batch_size, shuffle=False))
 
     precomputed_eigens = dict()
+    precomputed_vjp_funs = dict()
     #subset_batches = 3
     for i, (xb, yb) in enumerate(projection_data):
         #if i >= subset_batches:
@@ -475,9 +486,11 @@ def alternating_projections_qloss_classifier(
         eigvecs, inv_eigvals = precompute_loss_ggn_inverse(
             model=model, loss_fn=loss_fn, xb=xb, yb=yb, params=theta_map
         )
+        vjp_fun = precompute_vjp_function(model, loss_fn, xb, yb, theta_map)
         torch.cuda.empty_cache()
         
         precomputed_eigens[i] = (eigvecs, inv_eigvals)
+        precomputed_vjp_funs[i] = vjp_fun
     
     print("✅ Precomputation complete.")
     print(f"Time taken for precomputation: {time.time() - precompute_ggn_eigvecs_time_start:.2f} seconds")
@@ -492,7 +505,8 @@ def alternating_projections_qloss_classifier(
         loss_fn=loss_fn,
         theta_map=theta_map,
         projection_data=projection_data,
-        precomputed_eigens=precomputed_eigens
+        precomputed_eigens=precomputed_eigens,
+        precomputed_vjp_funs=precomputed_vjp_funs
     )
 
     if alpha is None:
@@ -526,7 +540,6 @@ def alternating_projections_qloss_classifier(
             delta_old = delta
             delta = projection_fn(delta)
             torch.cuda.empty_cache()
-            gc.collect()
 
             flat_delta_old, _ = tree_flatten(delta_old)
             flat_delta_new, _ = tree_flatten(delta)
