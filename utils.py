@@ -327,7 +327,7 @@ def precompute_loss_ggn_inverse(model, loss_fn, xb, yb, params, damping=1e-3):
         1.0 / eigvals
     )
 
-    return eigvecs.cpu(), inv_eigvals.cpu()
+    return eigvecs, inv_eigvals
 
 def project_delta_matrix_free(
     model,
@@ -339,7 +339,6 @@ def project_delta_matrix_free(
     loss_fn,
     theta
 ):
-    device = next(model.parameters()).device
     def batch_loss(params):
         out = functional_call(model, params, (xb,))
         return loss_fn(out, yb, reduction='none')  # (B,)
@@ -349,12 +348,11 @@ def project_delta_matrix_free(
         _, Jv_dict = jvp(batch_loss, (theta,), (delta,))  # (B,)
         flat_Jv, _ = tree_flatten(Jv_dict)   # list of tensors, P total
 
-        Jv = torch.cat([t.flatten() for t in flat_Jv]).detach().cpu() # Shape: (P,), Tensor
+        Jv = torch.cat([t.flatten() for t in flat_Jv]).detach() # Shape: (P,), Tensor
 
         # Low-rank solve: V Λ⁻¹ Vᵗ Jv        
         JJt_inv_Jv = eigvecs.T @ Jv            # (r,)
         JJt_inv_Jv = eigvecs @ (JJt_inv_Jv * inv_eigvals)  # (B,)
-        JJt_inv_Jv = JJt_inv_Jv.to(device)
         JJt_inv_Jv = JJt_inv_Jv.detach()
 
         # VJP: Jᵗ · v
@@ -479,7 +477,7 @@ def alternating_projections_qloss_classifier(
         )
         torch.cuda.empty_cache()
         
-        precomputed_eigens[i] = (eigvecs.cpu(), inv_eigvals.cpu())
+        precomputed_eigens[i] = (eigvecs, inv_eigvals)
     
     print("✅ Precomputation complete.")
     print(f"Time taken for precomputation: {time.time() - precompute_ggn_eigvecs_time_start:.2f} seconds")
