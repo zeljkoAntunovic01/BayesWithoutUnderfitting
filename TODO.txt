@@ -32,6 +32,12 @@ Task 7:
 [] 3. Read the paper again and find another use case/dataset to use the algorithm on
 
 Task 8:
-[] 1. Calculate some (sum_of_eigen = eigenvalues.sum()) and then call (sum_of_eigen.backward()) to see if autodif engine will be called.
+[X] 1. Calculate some (sum_of_eigen = eigenvalues.sum()) and then call (sum_of_eigen.backward()) to see if autodif engine will be called.
 If it is called then you know that the JVPs and VJPs are saving computational graphs that are the reason you run out of memory. Do the same test
 with Eigen vectors.
+
+Task 9:
+[] 1. Print how long each step takes (each block of code and also each iteration seperately). Check if next iterations take longer because something might
+accumulate such as memory and slows down next iterations. Check where the bottleneck is
+[] 2. If HPC is slower it might be that there is some memory copying between CPU and CUDA being done that slows it down
+on HPC since HPC has a less powerful CPU. That could be the general bottleneck

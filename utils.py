@@ -398,7 +398,7 @@ def build_projection_operator(model, loss_fn, theta_map, projection_data, precom
                 theta=theta_map,
                 vjp_fun = precomputed_vjp_funs[i]
             )
-            torch.cuda.empty_cache()
+            #torch.cuda.empty_cache()
         return delta
     return project_fn
 
@@ -478,16 +478,13 @@ def alternating_projections_qloss_classifier(
 
     precomputed_eigens = dict()
     precomputed_vjp_funs = dict()
-    #subset_batches = 3
     for i, (xb, yb) in enumerate(projection_data):
-        #if i >= subset_batches:
-        #    break
         xb, yb = xb.to(device), yb.to(device)
         eigvecs, inv_eigvals = precompute_loss_ggn_inverse(
             model=model, loss_fn=loss_fn, xb=xb, yb=yb, params=theta_map
         )
         vjp_fun = precompute_vjp_function(model, loss_fn, xb, yb, theta_map)
-        torch.cuda.empty_cache()
+        #torch.cuda.empty_cache()
         
         precomputed_eigens[i] = (eigvecs, inv_eigvals)
         precomputed_vjp_funs[i] = vjp_fun
@@ -534,12 +531,15 @@ def alternating_projections_qloss_classifier(
 
         kernel_norm, mean_kernel_check, max_kernel_check = kernel_check(model, delta, theta_map, x_val, y_val)
         print(f"Kernel initial ‖J·δ‖ -> Norm: {kernel_norm:.6f} | Mean: {mean_kernel_check:.6f} | Max: {max_kernel_check:.6f}")
-        
+    
 
         for iter_idx in range(max_iters):
+            iter_time_start = time.time()
+
             delta_old = delta
             delta = projection_fn(delta)
-            torch.cuda.empty_cache()
+            print(f"Projection time: {time.time() - iter_time_start:.2f} seconds")
+            #torch.cuda.empty_cache()
 
             flat_delta_old, _ = tree_flatten(delta_old)
             flat_delta_new, _ = tree_flatten(delta)
