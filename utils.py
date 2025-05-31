@@ -355,10 +355,7 @@ def project_delta_matrix_free(
     
     with torch.no_grad():
         # JVP: J · delta
-        _, Jv_dict = jvp(batch_loss, (theta,), (delta,))  # (B,)
-        flat_Jv, _ = tree_flatten(Jv_dict)   # list of tensors, P total
-
-        Jv = torch.cat([t.flatten() for t in flat_Jv]).detach() # Shape: (P,), Tensor
+        _, Jv = jvp(batch_loss, (theta,), (delta,))  # (B,)
 
         # Low-rank solve: V Λ⁻¹ Vᵗ Jv        
         JJt_inv_Jv = eigvecs.T @ Jv            # (r,)
@@ -478,8 +475,8 @@ def alternating_projections_qloss_classifier(
 
     precomputed_eigens = dict()
     precomputed_vjp_funs = dict()
-    print(f"Allocated memory before precomputation: {torch.cuda.memory_allocated() / (1024 ** 2):.2f} MB")
-    print(f"Reserved memory before precomputation: {torch.cuda.memory_reserved() / (1024 ** 2):.2f} MB")
+    #print(f"Allocated memory before precomputation: {torch.cuda.memory_allocated() / (1024 ** 2):.2f} MB")
+    #print(f"Reserved memory before precomputation: {torch.cuda.memory_reserved() / (1024 ** 2):.2f} MB")
     for i, (xb, yb) in enumerate(projection_data):
         xb, yb = xb.to(device), yb.to(device)
         eigvecs, inv_eigvals = precompute_loss_ggn_inverse(
@@ -490,8 +487,8 @@ def alternating_projections_qloss_classifier(
         
         precomputed_eigens[i] = (eigvecs, inv_eigvals)
         precomputed_vjp_funs[i] = vjp_fun
-        print(f"Allocated memory after batch {i}: {torch.cuda.memory_allocated() / (1024 ** 2):.2f} MB")
-        print(f"Reserved memory after batch {i}: {torch.cuda.memory_reserved() / (1024 ** 2):.2f} MB")
+        #print(f"Allocated memory after batch {i}: {torch.cuda.memory_allocated() / (1024 ** 2):.2f} MB")
+        #print(f"Reserved memory after batch {i}: {torch.cuda.memory_reserved() / (1024 ** 2):.2f} MB")
     
     print("✅ Precomputation complete.")
     print(f"Time taken for precomputation: {time.time() - precompute_ggn_eigvecs_time_start:.2f} seconds")
