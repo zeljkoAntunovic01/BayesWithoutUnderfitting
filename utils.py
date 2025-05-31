@@ -486,7 +486,7 @@ def alternating_projections_qloss_classifier(
             model=model, loss_fn=loss_fn, xb=xb, yb=yb, params=theta_map
         )
         vjp_fun = precompute_vjp_function(model, loss_fn, xb, yb, theta_map)
-        #torch.cuda.empty_cache()
+        torch.cuda.empty_cache()
         
         precomputed_eigens[i] = (eigvecs, inv_eigvals)
         precomputed_vjp_funs[i] = vjp_fun
@@ -543,7 +543,7 @@ def alternating_projections_qloss_classifier(
             delta_old = delta
             delta = projection_fn(delta)
             print(f"Projection time: {time.time() - iter_time_start:.2f} seconds")
-            #torch.cuda.empty_cache()
+            torch.cuda.empty_cache()
 
             flat_delta_old, _ = tree_flatten(delta_old)
             flat_delta_new, _ = tree_flatten(delta)
