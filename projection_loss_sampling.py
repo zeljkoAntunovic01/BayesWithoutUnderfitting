@@ -35,7 +35,7 @@ def sample_loss_projections(
     print(f"Time taken for precomputation: {time.time() - precompute_ggn_eigvecs_time_start:.2f} seconds")
 
     # Initialize prior samples from a univariate Gaussian
-    prior_samples = torch.randn(num_samples, params_vec.shape[0], device=params_vec.device)
+    prior_samples = torch.randn(num_samples, params_vec.shape[0], device=params_vec.device) / (alpha ** 0.5)
     x_val, y_val = next(iter(DataLoader(train_dataset, batch_size=batch_size)))
     x_val, y_val = x_val.to(device), y_val.to(device)
     

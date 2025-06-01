@@ -91,7 +91,7 @@ def run_alternated_projections_MNIST_experiment(val_split=1.0/6.0):
         transforms.Normalize((0.1307,), (0.3081,))
     ])
 
-    """ # FOR ACTUAL RUN
+    # FOR ACTUAL RUN
     # Load full dataset once with *no* transform
     full_train = datasets.MNIST(root='raw_data', train=True, download=True)
 
@@ -107,9 +107,9 @@ def run_alternated_projections_MNIST_experiment(val_split=1.0/6.0):
 
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False) """
+    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
-    # FOR TESTING RUN:
+    """ # FOR TESTING RUN:
     full_train = datasets.MNIST(root='raw_data', train=True, download=True)
     full_test = datasets.MNIST(root='raw_data', train=False, download=True)
     # Get fixed number of samples
@@ -131,7 +131,7 @@ def run_alternated_projections_MNIST_experiment(val_split=1.0/6.0):
     )
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False) """
 
     model = MNIST_Net()
     if not os.path.exists(MNIST_MODEL_PATH):
