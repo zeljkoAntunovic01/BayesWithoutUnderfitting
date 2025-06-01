@@ -4,6 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 from models import cifar10model, fcmodel, mnistmodel
 from plots import plot_2D_decision_boundary_confidence, plot_2D_decision_boundary_entropy
+from projection_loss_sampling import sample_loss_projections
 from utils import alternating_projections_qloss_classifier, alternating_projections_qproj_classifier, save_metrics_classification
 
 DECISION_BOUNDARIES_PATH = "results/decision_boundaries/alternating_projections/"
@@ -167,4 +168,45 @@ def loss_posterior_inference_CIFAR10_alt(model, train_dataset, test_dataset):
 
     # Restore original MAP parameters
     torch.nn.utils.vector_to_parameters(original_params, model.parameters())
+    model.eval()
+
+def loss_posterior_inference_MNIST_alt2(model, train_dataset, test_dataset):
+    theta_map = torch.nn.utils.parameters_to_vector(model.parameters()).detach()
+    num_samples = 5
+    theta_samples = sample_loss_projections(model, train_dataset, alpha=10.0, num_samples=num_samples)
+
+    for i in range(len(theta_samples)):
+        print(f"Sample {i} Difference from MAP: {torch.norm(theta_samples[i].to(DEVICE) - theta_map).item()}")
+    
+    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+    
+    # Get MAP predictions
+    model.to(DEVICE)
+    model.eval()
+    y_test_pred_map_all = []
+    y_test_true_all = []
+
+    with torch.no_grad():
+        for xb, yb in test_loader:
+            xb = xb.to(DEVICE)
+            logits = model(xb)
+            probs = torch.nn.functional.softmax(logits, dim=1)
+            y_test_pred_map_all.append(probs.cpu())
+            y_test_true_all.append(yb.cpu())
+
+    y_test_pred_map = torch.cat(y_test_pred_map_all, dim=0).numpy()
+    y_test_true = torch.cat(y_test_true_all, dim=0).numpy()
+
+    # Bayesian prediction (Mean, Variance)
+    with torch.no_grad():
+        original_state = torch.nn.utils.parameters_to_vector(model.parameters()).detach().clone()
+        mean_probs_pred, var_pred = mnistmodel.bayesian_prediction(model, theta_samples, test_loader)
+        torch.nn.utils.vector_to_parameters(original_state, model.parameters())  # Restore immediately
+        
+    # Save metrics
+    metrics = save_metrics_classification(
+        y_test_pred_map, mean_probs_pred,
+        y_test_true, f"{METRICS_PATH}MNIST_loss_alt_metrics.json"
+    )
+    
     model.eval()
