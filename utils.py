@@ -309,7 +309,7 @@ def compute_loss_kernel_vp_vmap(loss_fn, model, x, y, params, W):  # W: (B, B)
         return JJt_wi
 
     JJt_W = vmap(jvp_fn)(Jt_W)  # (B, B)
-    return JJt_W
+    return JJt_W # WRONG! NEed another JAacobian because JJtW != JJt 
 
 @torch.no_grad()
 def precompute_loss_ggn_inverse(model, loss_fn, xb, yb, params, damping=1e-3):
