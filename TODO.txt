@@ -28,7 +28,7 @@ Task 6:
 
 Task 7:
 [] 1. Debug the alpha, sometimes it is negative
-[] 2. Debug the alternating projections for MNIST and CIFAR10
+[X] 2. Debug the alternating projections for MNIST and CIFAR10
 [] 3. Read the paper again and find another use case/dataset to use the algorithm on
 
 Task 8:
@@ -37,7 +37,11 @@ If it is called then you know that the JVPs and VJPs are saving computational gr
 with Eigen vectors.
 
 Task 9:
-[] 1. Print how long each step takes (each block of code and also each iteration seperately). Check if next iterations take longer because something might
+[X] 1. Print how long each step takes (each block of code and also each iteration seperately). Check if next iterations take longer because something might
 accumulate such as memory and slows down next iterations. Check where the bottleneck is
-[] 2. If HPC is slower it might be that there is some memory copying between CPU and CUDA being done that slows it down
+[X] 2. If HPC is slower it might be that there is some memory copying between CPU and CUDA being done that slows it down
 on HPC since HPC has a less powerful CPU. That could be the general bottleneck
+
+Task 10:
+[] 1. MNIST is only with 0.22 accuracy compared to 0.99 of MAP, with a fixed alpha = 10.0. This is a problem. 100 iterations is not enough 
+and that is wrong.
