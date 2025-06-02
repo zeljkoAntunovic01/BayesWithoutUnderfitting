@@ -21,6 +21,7 @@ def sample_loss_projections(
     params = dict(model.named_parameters())
     device = next(iter(params.values())).device
     params_vec = torch.nn.utils.parameters_to_vector(params.values()).detach()
+    n_params = params_vec.shape[0]
     flat_params, _ = tree_flatten(params)
     numels = [p.numel() for p in flat_params]
     projection_data = list(DataLoader(train_dataset, batch_size=16, shuffle=False))
@@ -35,7 +36,7 @@ def sample_loss_projections(
     print(f"Time taken for precomputation: {time.time() - precompute_ggn_eigvecs_time_start:.2f} seconds")
 
     # Initialize prior samples from a univariate Gaussian
-    prior_samples = torch.randn(num_samples, params_vec.shape[0], device=params_vec.device) / (alpha ** 0.5)
+    prior_samples = torch.randn(num_samples, n_params, device=params_vec.device)
     x_val, y_val = next(iter(DataLoader(train_dataset, batch_size=batch_size)))
     x_val, y_val = x_val.to(device), y_val.to(device)
     
@@ -76,6 +77,12 @@ def sample_loss_projections(
         print(f"Sample {i}: Final Proj Norm = {final_proj_norms[i].item():.4e} | "
             f"Final Kernel Ratio = {final_kernel_ratios[i].item():.4e}")
 
+    print(f"Calculating optimal alpha...")
+    trace_proj = vmap(lambda e, x: torch.dot(e, x), in_dims=(0, 0))(prior_samples, projected_samples).mean()
+    alpha = torch.dot(params_vec, params_vec) / (n_params - trace_proj)
+    print(f"Trace of projection: {trace_proj.item():.4e}")
+    print(f"Optimal alpha: {alpha.item():.4f}")
 
+    posterior_samples = vmap(lambda single_sample: params_vec + (1./torch.sqrt(alpha)) * single_sample)(projected_samples)
 
-    return projected_samples
+    return posterior_samples
