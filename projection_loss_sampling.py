@@ -9,7 +9,6 @@ from torch.utils._pytree import tree_flatten, tree_unflatten
 def sample_loss_projections(
     model, 
     train_dataset, 
-    alpha=10.0, 
     num_samples=5,
     max_iters=1000, 
     rel_tol=1e-3, 
