@@ -11,7 +11,7 @@ def sample_loss_projections(
     train_dataset, 
     alpha=10.0, 
     num_samples=5,
-    max_iters=100, 
+    max_iters=1000, 
     rel_tol=1e-3, 
     batch_size=16
 ):

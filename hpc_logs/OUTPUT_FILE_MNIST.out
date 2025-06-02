@@ -1,0 +1,58 @@
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@hpc.dtu.dk>
+Subject: Job 25127464: <MNIST> in cluster <dcc> Done
+
+Job <MNIST> was submitted from host <gbarlogin1> by user <s233025> in cluster <dcc> at Mon Jun  2 02:28:27 2025
+Job was executed on host(s) <4*n-62-12-21>, in queue <gpua100>, as user <s233025> in cluster <dcc> at Mon Jun  2 02:28:27 2025
+</zhome/4c/1/203176> was used as the home directory.
+</zhome/4c/1/203176/BayesWithoutUnderfitting> was used as the working directory.
+Started at Mon Jun  2 02:28:27 2025
+Terminated at Mon Jun  2 07:28:33 2025
+Results reported at Mon Jun  2 07:28:33 2025
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+#!/bin/bash
+#BSUB -J MNIST
+#BSUB -q gpua100
+#BSUB -W 12:00
+#BSUB -n 4
+#BSUB -R "span[hosts=1]"
+#BSUB -R "rusage[mem=10GB]"
+#BSUB -gpu "num=1:mode=exclusive_process"
+
+#BSUB -o /zhome/4c/1/203176/BayesWithoutUnderfitting/hpc_logs/OUTPUT_FILE_MNIST.out
+#BSUB -e /zhome/4c/1/203176/BayesWithoutUnderfitting/hpc_logs/OUTPUT_FILE_MNIST.err
+
+module load python3/3.11.9
+
+source /zhome/4c/1/203176/BayesWithoutUnderfitting/venv/bin/activate
+python /zhome/4c/1/203176/BayesWithoutUnderfitting/main.py --experiment mnist > /zhome/4c/1/203176/BayesWithoutUnderfitting/hpc_logs/OUTPUT_FILE_MNIST.log 2>&1
+------------------------------------------------------------
+
+Successfully completed.
+
+Resource usage summary:
+
+    CPU time :                                   18022.23 sec.
+    Max Memory :                                 1348 MB
+    Average Memory :                             1143.21 MB
+    Total Requested Memory :                     40960.00 MB
+    Delta Memory :                               39612.00 MB
+    Max Swap :                                   -
+    Max Processes :                              4
+    Max Threads :                                8
+    Run time :                                   18006 sec.
+    Turnaround time :                            18006 sec.
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file </zhome/4c/1/203176/BayesWithoutUnderfitting/hpc_logs/OUTPUT_FILE_MNIST.err> for stderr output of this job.
+
