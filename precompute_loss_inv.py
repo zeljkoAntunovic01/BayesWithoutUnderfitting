@@ -1,5 +1,4 @@
-from torch.func import jvp, vjp
-from torch.autograd.functional import jacobian
+from torch.func import jvp, vjp, jacfwd
 import torch
 
 def loss_kernel_vp( # loss_kernel_vector_product = JJt @ W
@@ -25,7 +24,7 @@ def precompute_loss_inv(
         kernel_vp = lambda w: loss_kernel_vp(loss_lmbd, w, params_vec)
         batch_size = x.shape[0]
         w = torch.ones((batch_size,)).to(device)  # Vector for vector product
-        JJt = jacobian(kernel_vp, w, create_graph=False)
+        JJt = jacfwd(kernel_vp, argnums=0)(w)
         JJt = JJt.reshape(batch_size, batch_size)
         eigvals, eigvecs = torch.linalg.eigh(JJt)
         idx = eigvals < 1e-3

@@ -391,28 +391,26 @@ def save_metrics_classification(y_test_pred_map, mean_probs_pred, y_test_true, p
 
     return metrics
 
-def get_param_vector_tools(param_list):
+def get_param_vector_tools(param_dict):
     """
-    Given a list of model parameters (e.g., from `make_functional`),
-    returns:
+    Given a dictionary of named model parameters, returns:
     - a flattened parameter vector
-    - a function to unflatten any same-sized vector back to the original structure
+    - a function to unflatten any same-sized vector back to the original named dictionary
     """
-    # Store parameter shapes and sizes
-    param_shapes = [p.shape for p in param_list]
-    param_sizes = [p.numel() for p in param_list]
+    # Extract parameter tensors and names
+    param_names = list(param_dict.keys())
+    param_tensors = list(param_dict.values())
+    param_shapes = [p.shape for p in param_tensors]
+    param_sizes = [p.numel() for p in param_tensors]
     total_size = sum(param_sizes)
 
     # Flatten into a single vector
-    flat_params = parameters_to_vector(param_list).detach()
+    flat_params = parameters_to_vector(param_tensors).detach()
 
     def unflatten_params(vec):
-        """
-        Converts a flat tensor of shape [total_params] back to a list of tensors
-        with original shapes.
-        """
         assert vec.numel() == total_size, "Unflatten: size mismatch"
         split_tensors = torch.split(vec, param_sizes)
-        return [t.view(shape) for t, shape in zip(split_tensors, param_shapes)]
+        reshaped = [t.view(shape) for t, shape in zip(split_tensors, param_shapes)]
+        return dict(zip(param_names, reshaped))
 
     return flat_params, unflatten_params

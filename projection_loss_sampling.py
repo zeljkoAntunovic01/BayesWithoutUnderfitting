@@ -1,8 +1,7 @@
 import time
 import torch
-from torch.func import vmap
+from torch.func import vmap, functional_call
 from torch.utils.data import DataLoader
-from functorch import make_functional_with_buffers
 
 from alternating_loss_projections import loss_projection
 from precompute_loss_inv import precompute_loss_inv
@@ -19,12 +18,12 @@ def sample_loss_projections(
     # Prepare function parameters
     loss_fn = lambda pred, target: torch.nn.functional.cross_entropy(pred, target, reduction='none')
 
-    fmodel, params, buffers = make_functional_with_buffers(model)
+    params = dict(model.named_parameters())
     params_vec, unflatten_params = get_param_vector_tools(params)
 
     # Define stateless model_fn
     def model_fn(params_vec, x):
-        return fmodel(unflatten_params(params_vec), buffers, x)
+        return functional_call(model, unflatten_params(params_vec), x)
     
     device = params_vec.device
     n_params = params_vec.shape[0]
