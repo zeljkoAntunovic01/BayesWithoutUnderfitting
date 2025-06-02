@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from models import cifar10model, fcmodel, mnistmodel
 from plots import plot_2D_decision_boundary_confidence, plot_2D_decision_boundary_entropy
 from projection_loss_sampling import sample_loss_projections
-from utils import alternating_projections_qloss_classifier, alternating_projections_qproj_classifier, save_metrics_classification
+from utils import alternating_projections_qproj_classifier, save_metrics_classification
 
 DECISION_BOUNDARIES_PATH = "results/decision_boundaries/alternating_projections/"
 METRICS_PATH = "results/metrics/alternating_projections/"

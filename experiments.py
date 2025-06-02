@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.utils.data import Subset
 from plots import plot_2D_decision_boundary_MAP, plot_model
 import os
-from alternating_projections_inference import loss_posterior_inference_2D_classifier_alt, loss_posterior_inference_CIFAR10_alt, loss_posterior_inference_MNIST_alt, loss_posterior_inference_MNIST_alt2, proj_posterior_inference_2D_classifier_alt
+from alternating_projections_inference import loss_posterior_inference_2D_classifier_alt, loss_posterior_inference_CIFAR10_alt, loss_posterior_inference_MNIST_alt
 
 SINE_MODEL_PATH="results/models/sine_net.pth"
 MNIST_MODEL_PATH="results/models/mnist_model.pth"
@@ -142,7 +142,7 @@ def run_alternated_projections_MNIST_experiment(val_split=1.0/6.0):
     model.to(DEVICE)
     model.eval()
 
-    loss_posterior_inference_MNIST_alt2(model, train_dataset, test_dataset)
+    loss_posterior_inference_MNIST_alt(model, train_dataset, test_dataset)
 
 def run_alternated_projections_CIFAR10_experiment(val_split=1.0/6.0):
     random.seed(42)

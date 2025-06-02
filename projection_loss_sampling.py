@@ -1,10 +1,12 @@
 import time
 import torch
-from torch.func import vmap, jvp, vjp, functional_call
+from torch.func import vmap
 from torch.utils.data import DataLoader
+from functorch import make_functional_with_buffers
+
 from alternating_loss_projections import loss_projection
 from precompute_loss_inv import precompute_loss_inv
-from torch.utils._pytree import tree_flatten, tree_unflatten
+from utils import get_param_vector_tools
 
 def sample_loss_projections(
     model, 
@@ -16,20 +18,23 @@ def sample_loss_projections(
 ):
     # Prepare function parameters
     loss_fn = lambda pred, target: torch.nn.functional.cross_entropy(pred, target, reduction='none')
-    model_fn = lambda params, x: functional_call(model, params, x)
-    params = dict(model.named_parameters())
-    device = next(iter(params.values())).device
-    params_vec = torch.nn.utils.parameters_to_vector(params.values()).detach()
+
+    fmodel, params, buffers = make_functional_with_buffers(model)
+    params_vec, unflatten_params = get_param_vector_tools(params)
+
+    # Define stateless model_fn
+    def model_fn(params_vec, x):
+        return fmodel(unflatten_params(params_vec), buffers, x)
+    
+    device = params_vec.device
     n_params = params_vec.shape[0]
-    flat_params, _ = tree_flatten(params)
-    numels = [p.numel() for p in flat_params]
     projection_data = list(DataLoader(train_dataset, batch_size=16, shuffle=False))
     
     # Precompute GGN eigenvectors (matrix-free)
     precompute_ggn_eigvecs_time_start = time.time()
     print("🔄 Precomputing GGN eigenvectors...")
     batched_eigvecs, batched_inv_eigvals = precompute_loss_inv(
-        model_fn, loss_fn, params, projection_data
+        model_fn, loss_fn, params_vec, projection_data
     )
     print("✅ Precomputation complete.")
     print(f"Time taken for precomputation: {time.time() - precompute_ggn_eigvecs_time_start:.2f} seconds")
@@ -43,13 +48,12 @@ def sample_loss_projections(
         delta=init_delta,
         model_fn=model_fn,
         loss_fn=loss_fn,
-        params=params,
+        params_vec=params_vec,
         projection_data=projection_data,
         batched_eigvecs=batched_eigvecs,
         batched_inv_eigvals=batched_inv_eigvals,
         num_iters=max_iters,
-        x_val=x_val,  
-        numels=numels
+        x_val=x_val
     )
 
     """# SERIALIZED VERSION FOR DEBUGGING

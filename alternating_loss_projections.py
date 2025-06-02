@@ -1,44 +1,33 @@
 import torch
-from torch.func import vmap, jvp, vjp
-from torch.utils._pytree import tree_flatten, tree_unflatten
+from torch.func import jvp, vjp
 
 def loss_projection(
     delta,
     model_fn, 
     loss_fn,
-    params,
+    params_vec,
     projection_data,
     batched_eigvecs,
     batched_inv_eigvals,
     num_iters,
-    x_val,
-    numels
+    x_val
 ):
-    device = next(iter(params.values())).device
-    # 🔄 Unflatten delta into dict structure
-    delta_split = list(delta.split(numels))  # 1D splits
-    delta = {
-        k: t.view(params[k].shape)  # reshape each split to original shape
-        for t, k in zip(delta_split, params.keys())
-    }
+    device = params_vec.device
     
     def loss_projection_step(delta, x, y, eigvecs, inv_eigvals):
-        loss_lmbd = lambda params: loss_fn(model_fn(params, x), y)
+        loss_lmbd = lambda p_vec: loss_fn(model_fn(p_vec, x), y)
 
         with torch.no_grad():
-            _, Jv = jvp(loss_lmbd, (params,), (delta,))
-            flat_Jv, _ = tree_flatten(Jv)
-            Jv_flat = torch.cat([v.reshape(-1) for v in flat_Jv])
+            _, Jv = jvp(loss_lmbd, (params_vec,), (delta,))
 
-
-            JJt_inv_Jv = eigvecs.T @ Jv_flat
+            JJt_inv_Jv = eigvecs.T @ Jv
             JJt_inv_Jv = eigvecs @ (inv_eigvals * JJt_inv_Jv)
             JJt_inv_Jv = JJt_inv_Jv.reshape((x.shape[0],))
 
-            _, Jtv_fn = vjp(loss_lmbd, params)
+            _, Jtv_fn = vjp(loss_lmbd, params_vec)
             Jt_JJt_inv_Jv = Jtv_fn(JJt_inv_Jv)[0]
 
-            proj_delta = {k: delta[k] - Jt_JJt_inv_Jv[k] for k in delta}
+            proj_delta = delta - Jt_JJt_inv_Jv
 
         return proj_delta
     
@@ -50,13 +39,12 @@ def loss_projection(
             iter_delta = loss_projection_step(iter_delta, x, y, eigvecs, inv_eigvals)
 
         # Compute norm of the projection
-        flat_proj, _ = tree_flatten(iter_delta)
-        proj_vector = torch.cat([v.reshape(-1) for v in flat_proj])
+        proj_vector = iter_delta
         proj_norm = torch.linalg.vector_norm(proj_vector)
 
         # Compute kernel norm at validation point
         model_out_fn = lambda p: model_fn(p, x_val)
-        _, Jdelta = jvp(model_out_fn, (params,), (iter_delta,))
+        _, Jdelta = jvp(model_out_fn, (params_vec,), (iter_delta,))
         kernel_norm = torch.linalg.vector_norm(Jdelta)
 
         # FOR SERIALIZED VERSION DEBUGGING
@@ -75,12 +63,8 @@ def loss_projection(
     proj_norms = torch.stack(proj_norms)
     kernel_norm_ratios = torch.stack(kernel_norm_ratios)
 
-
-
-    # ✅ Flatten and return
-    flat_delta_out, _ = tree_flatten(delta)
     return (
-        torch.cat([v.reshape(-1) for v in flat_delta_out]),
+        delta,
         proj_norms,
         kernel_norm_ratios
     )

@@ -1,4 +1,4 @@
-from torch.func import vmap, jvp, vjp, functional_call
+from torch.func import jvp, vjp
 from torch.autograd.functional import jacobian
 import torch
 
@@ -15,14 +15,14 @@ def loss_kernel_vp( # loss_kernel_vector_product = JJt @ W
 def precompute_loss_inv(
     model_fn,
     loss_fn, 
-    params, 
+    params_vec, 
     train_data
 ):
-    device = next(iter(params.values())).device
+    device = params_vec.device
 
     def compute_eigendecomp_for_batch(x, y):
-        loss_lmbd = lambda params: loss_fn(model_fn(params, x), y)
-        kernel_vp = lambda w: loss_kernel_vp(loss_lmbd, w, params)
+        loss_lmbd = lambda p_vec: loss_fn(model_fn(p_vec, x), y)
+        kernel_vp = lambda w: loss_kernel_vp(loss_lmbd, w, params_vec)
         batch_size = x.shape[0]
         w = torch.ones((batch_size,)).to(device)  # Vector for vector product
         JJt = jacobian(kernel_vp, w, create_graph=False)

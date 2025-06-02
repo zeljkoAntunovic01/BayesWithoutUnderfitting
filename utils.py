@@ -1,15 +1,11 @@
-import gc
 import json
-import time
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from metrics import (
     compute_accuracy, compute_brier_score, compute_classification_ece_mce, compute_classification_nll, compute_confidence, compute_coverage, compute_multiclass_auroc, compute_predictive_entropy, compute_regression_ece, compute_regression_nll, compute_rmse, compute_sharpness
 )
-from torch.func import vmap, jvp, vjp, functional_call
-from torch.utils._pytree import tree_flatten, tree_unflatten
-from torch.nn.utils import parameters_to_vector, vector_to_parameters
+from torch.nn.utils import parameters_to_vector
 
 def compute_model_jacobian_params(model, x_train):
     """
@@ -394,3 +390,29 @@ def save_metrics_classification(y_test_pred_map, mean_probs_pred, y_test_true, p
         json.dump(metrics, f, indent=4)
 
     return metrics
+
+def get_param_vector_tools(param_list):
+    """
+    Given a list of model parameters (e.g., from `make_functional`),
+    returns:
+    - a flattened parameter vector
+    - a function to unflatten any same-sized vector back to the original structure
+    """
+    # Store parameter shapes and sizes
+    param_shapes = [p.shape for p in param_list]
+    param_sizes = [p.numel() for p in param_list]
+    total_size = sum(param_sizes)
+
+    # Flatten into a single vector
+    flat_params = parameters_to_vector(param_list).detach()
+
+    def unflatten_params(vec):
+        """
+        Converts a flat tensor of shape [total_params] back to a list of tensors
+        with original shapes.
+        """
+        assert vec.numel() == total_size, "Unflatten: size mismatch"
+        split_tensors = torch.split(vec, param_sizes)
+        return [t.view(shape) for t, shape in zip(split_tensors, param_shapes)]
+
+    return flat_params, unflatten_params
