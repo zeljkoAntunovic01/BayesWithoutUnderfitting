@@ -2,6 +2,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 import numpy as np
+from torch.func import functional_call
+
+from utils import get_param_vector_tools
 
 class LeNet5(nn.Module):
     def __init__(self, num_classes=10):
@@ -48,20 +51,26 @@ def bayesian_prediction(model, theta_samples, test_loader):
     """
     model.eval()
     device = next(model.parameters()).device  # Ensure data is on the correct device
+    params = dict(model.named_parameters())
+    _, unflatten_params = get_param_vector_tools(params)
 
+    # Define stateless model_fn
+    def model_fn(theta_unflattened, x):
+        return functional_call(model, theta_unflattened, x)
+    
     predictions = []
 
     for theta_sample in theta_samples:
         # Load new parameters into model
-        torch.nn.utils.vector_to_parameters(theta_sample, model.parameters())
-        model.to(device)
+        
         sample_probs = []
+        theta_flattened = unflatten_params(theta_sample)  # Unflatten the sampled parameters
 
         # Compute predictions (logits) and convert to probabilities using softmax
         with torch.no_grad():
             for xb, _ in test_loader:
                 xb = xb.to(device)
-                logits = model(xb)
+                logits = model_fn(theta_flattened, xb)
                 probs = F.softmax(logits, dim=1)  # Convert logits to class probabilities
                 sample_probs.append(probs.cpu())
 
