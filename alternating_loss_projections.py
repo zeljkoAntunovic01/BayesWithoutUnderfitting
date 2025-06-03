@@ -28,6 +28,10 @@ def loss_projection(
             Jt_JJt_inv_Jv = Jtv_fn(JJt_inv_Jv)[0]
 
             proj_delta = delta - Jt_JJt_inv_Jv
+            #print(f"[DEBUG] ||Jv|| = {Jv.norm().item():.4f}")
+            #print(f"[DEBUG] ||J^T J J^T_inv Jv|| = {Jt_JJt_inv_Jv.norm().item():.4f}")
+            #print(f"[DEBUG] ||delta|| before = {delta.norm().item():.4f} → after = {proj_delta.norm().item():.4f}")
+
 
         return proj_delta
     

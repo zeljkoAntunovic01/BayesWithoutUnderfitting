@@ -2,7 +2,7 @@ import random
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 from models.cifar10model import CIFAR10_Net
-from models.mnistmodel import MNIST_Net
+from models.mnistmodel import LeNet5
 import models.sinemodel as sinemodel
 import models.fcmodel as fcmodel
 from data.utils import generate_sine_data
@@ -80,15 +80,15 @@ def run_alternated_projections_2d_classification_experiment():
 def run_alternated_projections_MNIST_experiment(val_split=1.0/6.0):
     random.seed(42)
     train_transform = transforms.Compose([
-        transforms.RandomCrop(28, padding=2),     # Slight translation
-        transforms.RandomRotation(degrees=10),    # Small rotation
+        transforms.Resize((32,32)),
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,))
     ])
 
     test_transform = transforms.Compose([
+        transforms.Resize((32,32)),
         transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
+        transforms.Normalize((0.1325,), (0.3105,))
     ])
 
     # FOR ACTUAL RUN
@@ -133,9 +133,9 @@ def run_alternated_projections_MNIST_experiment(val_split=1.0/6.0):
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False) """
 
-    model = MNIST_Net()
+    model = LeNet5()
     if not os.path.exists(MNIST_MODEL_PATH):
-        train_classifier(model=model, train_data=train_loader, val_data=val_loader, save_path=MNIST_MODEL_PATH)
+        train_classifier(model=model, train_data=train_loader, val_data=val_loader, save_path=MNIST_MODEL_PATH, num_epochs=5)
     else:
         model.load_state_dict(torch.load(MNIST_MODEL_PATH))
     

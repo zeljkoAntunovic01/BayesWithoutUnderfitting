@@ -68,7 +68,13 @@ def sample_loss_projections(
         print(f"Sample {i}: Final Proj Norm = {final_proj_norm.item():.4e} | "
               f"Final Kernel Ratio = {final_kernel_ratio.item():.4e} | "
               f"Time taken: {end_time - start_time:.2f} seconds")
-        projected_samples.append(projected_sample) """
+        projected_samples.append(projected_sample)
+
+    posterior_samples = []
+    for sample in projected_samples:
+        posterior_sample = params_vec + (1. / torch.sqrt(torch.tensor(1.0))) * sample  # Assuming alpha=1 for simplicity
+        posterior_samples.append(posterior_sample) """
+
 
     projected_samples, proj_norms, kernel_norm_ratios = vmap(loss_projection_fn)(prior_samples)
 
