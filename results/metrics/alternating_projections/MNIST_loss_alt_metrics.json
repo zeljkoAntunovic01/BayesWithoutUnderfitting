@@ -1,103 +1,103 @@
 {
     "MAP": {
-        "Accuracy": 1.0,
-        "NLL": 0.010624637827277184,
-        "ECE": 0.009194324910640716,
-        "MCE": 0.2999858856201172,
-        "Brier Score": 0.0044085793197155,
-        "Confidence": 0.9908057451248169,
-        "Predictive Entropy": 0.026653075590729713,
+        "Accuracy": 0.9919,
+        "NLL": 0.026646187528967857,
+        "ECE": 0.0027686576932669064,
+        "MCE": 0.38139796257019043,
+        "Brier Score": 0.013376234099268913,
+        "Confidence": 0.9892709255218506,
+        "Predictive Entropy": 0.035285383462905884,
         "AUROC per class": [
             {
                 "class": "0",
-                "auroc": 1.0
+                "auroc": 0.9999919679623512
             },
             {
                 "class": "1",
-                "auroc": 1.0
+                "auroc": 0.9999923472747105
             },
             {
                 "class": "2",
-                "auroc": 1.0
+                "auroc": 0.9999694218547946
             },
             {
                 "class": "3",
-                "auroc": 1.0
+                "auroc": 0.9999424002466988
             },
             {
                 "class": "4",
-                "auroc": 1.0
+                "auroc": 0.9999612677789927
             },
             {
                 "class": "5",
-                "auroc": 1.0
+                "auroc": 0.999964304775184
             },
             {
                 "class": "6",
-                "auroc": 1.0
+                "auroc": 0.9999607491645345
             },
             {
                 "class": "7",
-                "auroc": 1.0
+                "auroc": 0.9999399341834778
             },
             {
                 "class": "8",
-                "auroc": 1.0
+                "auroc": 0.9999759990645323
             },
             {
                 "class": "9",
-                "auroc": 1.0
+                "auroc": 0.9998651883906812
             }
         ]
     },
     "Bayesian": {
-        "Accuracy": 0.075,
-        "NLL": NaN,
-        "ECE": 0.0,
-        "MCE": 0.0,
-        "Brier Score": NaN,
-        "Confidence": NaN,
-        "Predictive Entropy": NaN,
+        "Accuracy": 0.0956,
+        "NLL": 11.457415580749512,
+        "ECE": 0.2709000682383776,
+        "MCE": 0.7655171340909498,
+        "Brier Score": 1.0869519710540771,
+        "Confidence": 0.36650002002716064,
+        "Predictive Entropy": 1.33139967918396,
         "AUROC per class": [
             {
                 "class": "0",
-                "auroc": NaN
+                "auroc": 0.49687468889995023
             },
             {
                 "class": "1",
-                "auroc": NaN
+                "auroc": 0.38004462433318176
             },
             {
                 "class": "2",
-                "auroc": NaN
+                "auroc": 0.4311824795655872
             },
             {
                 "class": "3",
-                "auroc": NaN
+                "auroc": 0.5193706979151753
             },
             {
                 "class": "4",
-                "auroc": NaN
+                "auroc": 0.5468760939311691
             },
             {
                 "class": "5",
-                "auroc": NaN
+                "auroc": 0.5130326958412356
             },
             {
                 "class": "6",
-                "auroc": NaN
+                "auroc": 0.5092793015567805
             },
             {
                 "class": "7",
-                "auroc": NaN
+                "auroc": 0.5457953061058095
             },
             {
                 "class": "8",
-                "auroc": NaN
+                "auroc": 0.5387224950417026
             },
             {
                 "class": "9",
-                "auroc": NaN
+                "auroc": 0.5033903521404899
             }
         ]
     }

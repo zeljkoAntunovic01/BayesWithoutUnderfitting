@@ -2,23 +2,23 @@
   model.load_state_dict(torch.load(MNIST_MODEL_PATH))
 🔄 Precomputing GGN eigenvectors...
 ✅ Precomputation complete.
-Time taken for precomputation: 110.97 seconds
-Sample 0: Final Proj Norm = 1.2493e+03 | Final Kernel Ratio = 1.2961e-01
-Sample 1: Final Proj Norm = 1.2493e+03 | Final Kernel Ratio = 1.3738e-01
-Sample 2: Final Proj Norm = 1.2482e+03 | Final Kernel Ratio = 1.1470e-01
-Sample 3: Final Proj Norm = 1.2481e+03 | Final Kernel Ratio = 1.3259e-01
-Sample 4: Final Proj Norm = 1.2486e+03 | Final Kernel Ratio = 1.3043e-01
+Time taken for precomputation: 67.51 seconds
+Sample 0: Final Proj Norm = 1.2477e+03 | Final Kernel Ratio = 1.1598e-01
+Sample 1: Final Proj Norm = 1.2491e+03 | Final Kernel Ratio = 1.5154e-01
+Sample 2: Final Proj Norm = 1.2476e+03 | Final Kernel Ratio = 1.2276e-01
+Sample 3: Final Proj Norm = 1.2488e+03 | Final Kernel Ratio = 1.1994e-01
+Sample 4: Final Proj Norm = 1.2493e+03 | Final Kernel Ratio = 1.1595e-01
 Calculating optimal alpha...
-Trace of projection: 1.5586e+06
-Optimal alpha: 0.0520
-Sample 0 Difference from MAP: 5476.76904296875
-Sample 1 Difference from MAP: 5477.02978515625
-Sample 2 Difference from MAP: 5472.08203125
-Sample 3 Difference from MAP: 5471.71044921875
-Sample 4 Difference from MAP: 5474.05712890625
+Trace of projection: 1.5581e+06
+Optimal alpha: 0.0507
+Sample 0 Difference from MAP: 5541.0029296875
+Sample 1 Difference from MAP: 5547.3310546875
+Sample 2 Difference from MAP: 5540.6279296875
+Sample 3 Difference from MAP: 5545.70703125
+Sample 4 Difference from MAP: 5548.13623046875
 Accuracy (MAP Model): 0.9919
-Accuracy (Bayesian Mean Model): 0.1238
-NLL (Bayesian Model): 11.3032
+Accuracy (Bayesian Mean Model): 0.0956
+NLL (Bayesian Model): 11.4574
 NLL (MAP Model): 0.0266
-ECE (Bayesian Model): 0.2420
+ECE (Bayesian Model): 0.2709
 ECE (MAP Model): 0.0028
