@@ -17,20 +17,20 @@ def loss_projection(
     def loss_projection_step(delta, x, y, eigvecs, inv_eigvals):
         loss_lmbd = lambda p_vec: loss_fn(model_fn(p_vec, x), y)
 
-        with torch.no_grad():
-            _, Jv = jvp(loss_lmbd, (params_vec,), (delta,))
+        #with torch.no_grad():
+        _, Jv = jvp(loss_lmbd, (params_vec,), (delta,))
 
-            JJt_inv_Jv = eigvecs.T @ Jv
-            JJt_inv_Jv = eigvecs @ (inv_eigvals * JJt_inv_Jv)
-            JJt_inv_Jv = JJt_inv_Jv.reshape((x.shape[0],))
+        JJt_inv_Jv = eigvecs.T @ Jv
+        JJt_inv_Jv = eigvecs @ (inv_eigvals * JJt_inv_Jv)
+        JJt_inv_Jv = JJt_inv_Jv.reshape((x.shape[0],))
 
-            _, Jtv_fn = vjp(loss_lmbd, params_vec)
-            Jt_JJt_inv_Jv = Jtv_fn(JJt_inv_Jv)[0]
+        _, Jtv_fn = vjp(loss_lmbd, params_vec)
+        Jt_JJt_inv_Jv = Jtv_fn(JJt_inv_Jv)[0]
 
-            proj_delta = delta - Jt_JJt_inv_Jv
-            #print(f"[DEBUG] ||Jv|| = {Jv.norm().item():.4f}")
-            #print(f"[DEBUG] ||J^T J J^T_inv Jv|| = {Jt_JJt_inv_Jv.norm().item():.4f}")
-            #print(f"[DEBUG] ||delta|| before = {delta.norm().item():.4f} → after = {proj_delta.norm().item():.4f}")
+        proj_delta = delta - Jt_JJt_inv_Jv
+        #print(f"[DEBUG] ||Jv|| = {Jv.norm().item():.4f}")
+        #print(f"[DEBUG] ||J^T J J^T_inv Jv|| = {Jt_JJt_inv_Jv.norm().item():.4f}")
+        #print(f"[DEBUG] ||delta|| before = {delta.norm().item():.4f} → after = {proj_delta.norm().item():.4f}")
 
 
         return proj_delta

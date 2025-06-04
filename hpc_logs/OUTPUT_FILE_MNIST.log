@@ -1,24 +1,40 @@
-/zhome/4c/1/203176/BayesWithoutUnderfitting/experiments.py:140: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
-  model.load_state_dict(torch.load(MNIST_MODEL_PATH))
+Using device: cuda
+Epoch 1/5:
+Train Loss: 0.180503, Train Accuracy: 94.92%
+Val Loss: 0.088220, Val Accuracy: 97.27%
+Epoch 2/5:
+Train Loss: 0.059239, Train Accuracy: 98.18%
+Val Loss: 0.054299, Val Accuracy: 98.13%
+Epoch 3/5:
+Train Loss: 0.044290, Train Accuracy: 98.59%
+Val Loss: 0.060308, Val Accuracy: 98.16%
+Epoch 4/5:
+Train Loss: 0.037435, Train Accuracy: 98.84%
+Val Loss: 0.047117, Val Accuracy: 98.53%
+Epoch 5/5:
+Train Loss: 0.030746, Train Accuracy: 99.00%
+Val Loss: 0.043058, Val Accuracy: 98.84%
+Final Loss: 0.030746, Final Train Accuracy: 99.00%
+Final Val Loss: 0.043058, Final Val Accuracy: 98.84%
 🔄 Precomputing GGN eigenvectors...
 ✅ Precomputation complete.
-Time taken for precomputation: 67.51 seconds
-Sample 0: Final Proj Norm = 1.2477e+03 | Final Kernel Ratio = 1.1598e-01
-Sample 1: Final Proj Norm = 1.2491e+03 | Final Kernel Ratio = 1.5154e-01
-Sample 2: Final Proj Norm = 1.2476e+03 | Final Kernel Ratio = 1.2276e-01
-Sample 3: Final Proj Norm = 1.2488e+03 | Final Kernel Ratio = 1.1994e-01
-Sample 4: Final Proj Norm = 1.2493e+03 | Final Kernel Ratio = 1.1595e-01
+Time taken for precomputation: 63.72 seconds
+Sample 0: Final Proj Norm = 2.2136e+02 | Final Kernel Ratio = 4.5559e-01
+Sample 1: Final Proj Norm = 2.2107e+02 | Final Kernel Ratio = 5.1880e-01
+Sample 2: Final Proj Norm = 2.2117e+02 | Final Kernel Ratio = 7.1013e-01
+Sample 3: Final Proj Norm = 2.2219e+02 | Final Kernel Ratio = 6.1367e-01
+Sample 4: Final Proj Norm = 2.2115e+02 | Final Kernel Ratio = 4.9210e-01
 Calculating optimal alpha...
-Trace of projection: 1.5581e+06
-Optimal alpha: 0.0507
-Sample 0 Difference from MAP: 5541.0029296875
-Sample 1 Difference from MAP: 5547.3310546875
-Sample 2 Difference from MAP: 5540.6279296875
-Sample 3 Difference from MAP: 5545.70703125
-Sample 4 Difference from MAP: 5548.13623046875
-Accuracy (MAP Model): 0.9919
-Accuracy (Bayesian Mean Model): 0.0956
-NLL (Bayesian Model): 11.4574
-NLL (MAP Model): 0.0266
-ECE (Bayesian Model): 0.2709
-ECE (MAP Model): 0.0028
+Trace of projection: 4.9032e+04
+Optimal alpha: 0.0183
+Sample 0 Difference from MAP: 1638.1865234375
+Sample 1 Difference from MAP: 1636.0333251953125
+Sample 2 Difference from MAP: 1636.760498046875
+Sample 3 Difference from MAP: 1644.323974609375
+Sample 4 Difference from MAP: 1636.61962890625
+Accuracy (MAP Model): 0.9882
+Accuracy (Bayesian Mean Model): 0.1147
+NLL (Bayesian Model): 11.8704
+NLL (MAP Model): 0.0371
+ECE (Bayesian Model): 0.3134
+ECE (MAP Model): 0.0027

@@ -53,7 +53,7 @@ def proj_posterior_inference_2D_classifier_alt(model, train_dataset, test_datase
 def loss_posterior_inference_2D_classifier_alt(model, train_dataset, test_dataset):
     theta_map = torch.nn.utils.parameters_to_vector(model.parameters()).detach()
     num_samples = 5
-    theta_samples = sample_loss_projections(model, train_dataset, alpha=10.0, num_samples=num_samples)
+    theta_samples = sample_loss_projections(model, train_dataset, num_samples=num_samples)
 
     # Save original parameters
     original_params = torch.nn.utils.parameters_to_vector(model.parameters()).clone()
@@ -65,7 +65,7 @@ def loss_posterior_inference_2D_classifier_alt(model, train_dataset, test_datase
     x_test = test_dataset[:][0]
     y_test_true = test_dataset[:][1]
     y_test_pred_map = torch.nn.functional.softmax(model(x_test), dim=1).detach().numpy()
-    mean_probs_pred, var_pred = fcmodel.bayesian_prediction(model, theta_samples, x_test)
+    mean_probs_pred, var_pred = fcmodel.bayesian_prediction_alt(model, theta_samples, x_test)
     
     metrics = save_metrics_classification(
         y_test_pred_map, mean_probs_pred,

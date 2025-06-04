@@ -3,7 +3,8 @@ import torch.nn.functional as F
 import torch
 import numpy as np
 
-from utils import compute_loss_jacobian_params_classifier, compute_model_jacobian_params_classifier
+from utils import compute_loss_jacobian_params_classifier, compute_model_jacobian_params_classifier, get_param_vector_tools
+from torch.func import functional_call
 
 class FC_2D_Net(nn.Module):
     def __init__(self, hidden_units=64, n_classes=4):
@@ -194,6 +195,50 @@ def bayesian_prediction(model, theta_samples, x_test):
         # Compute predictions (logits) and convert to probabilities using softmax
         with torch.no_grad():
             logits = model(x_test)  # Shape: (N, num_classes)
+            probs = F.softmax(logits, dim=1)  # Convert logits to class probabilities
+
+        predictions.append(probs.cpu().numpy())  # Store in CPU memory to avoid GPU overflow
+
+    predictions = np.array(predictions)  # Shape: (num_samples, N, num_classes)
+
+    # Compute mean and variance over the sampled weights
+    mean_pred = np.mean(predictions, axis=0)  # Shape: (N, num_classes)
+    var_pred = np.var(predictions, axis=0)  # Shape: (N, num_classes)
+
+    return mean_pred, var_pred
+
+def bayesian_prediction_alt(model, theta_samples, x_test):
+    """
+    Makes Bayesian predictions by averaging over posterior samples for a classification model (MNIST).
+
+    Args:
+        model (torch.nn.Module): Neural network model (e.g., FC_2D_Net).
+        theta_samples (list of torch.Tensor): List of sampled parameter tensors.
+        x_test (torch.Tensor): Test inputs, shape (N, 2).
+
+    Returns:
+        mean_pred (np.ndarray): Mean of sampled class probabilities, shape (N, num_classes).
+        var_pred (np.ndarray): Variance of sampled class probabilities, shape (N, num_classes).
+    """
+    model.eval()
+    device = next(model.parameters()).device  # Ensure data is on the correct device
+    params = dict(model.named_parameters())
+    _, unflatten_params = get_param_vector_tools(params)
+
+    # Define stateless model_fn
+    def model_fn(theta_unflattened, x):
+        return functional_call(model, theta_unflattened, x)
+    
+    predictions = []
+    x_test = x_test.to(device)
+
+    for theta_sample in theta_samples:
+        # Load new parameters into model
+        theta_flattened = unflatten_params(theta_sample)  # Unflatten the sampled parameters
+
+        # Compute predictions (logits) and convert to probabilities using softmax
+        with torch.no_grad():
+            logits = model_fn(theta_flattened, x_test)  # Shape: (N, num_classes)
             probs = F.softmax(logits, dim=1)  # Convert logits to class probabilities
 
         predictions.append(probs.cpu().numpy())  # Store in CPU memory to avoid GPU overflow
