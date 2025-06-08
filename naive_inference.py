@@ -121,7 +121,7 @@ def projected_posterior_inference_2D_classifier(model, train_dataset, test_datas
     mean_probs_pred, var_pred = fcmodel.bayesian_prediction(model, theta_samples, x_test)
     y_test_pred = np.argmax(mean_probs_pred, axis=1)
     
-    metrics = save_metrics_classification(y_test_pred_map, y_test_pred, mean_probs_pred, var_pred, y_test_true.detach().numpy(), f"{METRICS_PATH}2Dclassifier_proj_metrics.json")
+    metrics = save_metrics_classification(y_test_pred_map, mean_probs_pred, y_test_true.detach().numpy(), f"{METRICS_PATH}2Dclassifier_proj_metrics.json")
 
     plot_2D_decision_boundary_entropy(model, theta_samples, x_test, y_test_true, mean_probs_pred, save_path=f"{DECISION_BOUNDARIES_PATH}Decision_boundary_proj_entropy.png")
     plot_2D_decision_boundary_confidence(model, theta_samples, x_test, y_test_true, mean_probs_pred, save_path=f"{DECISION_BOUNDARIES_PATH}Decision_boundary_proj_confidence.png")
@@ -179,11 +179,12 @@ def loss_posterior_inference_2D_classifier(model, train_dataset, test_dataset):
     
     x_test = test_dataset[:][0]
     y_test_true = test_dataset[:][1]
-    y_test_pred_map = torch.nn.functional.softmax(model(x_test), dim=1).detach().numpy()
+    x_test, y_test_true = x_test.to(theta_map.device), y_test_true.to(theta_map.device)
+    y_test_pred_map = torch.nn.functional.softmax(model(x_test), dim=1).detach().cpu().numpy()
     mean_probs_pred, var_pred = fcmodel.bayesian_prediction(model, theta_samples, x_test)
     y_test_pred = np.argmax(mean_probs_pred, axis=1)
     
-    metrics = save_metrics_classification(y_test_pred_map, y_test_pred, mean_probs_pred, var_pred, y_test_true.detach().numpy(), f"{METRICS_PATH}2Dclassifier_loss_metrics.json")
+    metrics = save_metrics_classification(y_test_pred_map, mean_probs_pred, y_test_true.detach().cpu().numpy(), f"{METRICS_PATH}2Dclassifier_loss_metrics.json")
 
     plot_2D_decision_boundary_entropy(model, theta_samples, x_test, y_test_true, mean_probs_pred, save_path=f"{DECISION_BOUNDARIES_PATH}Decision_boundary_loss_entropy.png")
     plot_2D_decision_boundary_confidence(model, theta_samples, x_test, y_test_true, mean_probs_pred, save_path=f"{DECISION_BOUNDARIES_PATH}Decision_boundary_loss_confidence.png")

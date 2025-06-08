@@ -47,14 +47,14 @@ def run_naive_2d_classification_experiment():
 
     model = fcmodel.FC_2D_Net(n_classes=4)
     if not os.path.exists(FC_2D_MODEL_PATH):
-        train_classifier(model=model, train_data=train_loader, save_path=FC_2D_MODEL_PATH)
+        train_classifier(model=model, train_data=train_loader, save_path=FC_2D_MODEL_PATH, num_epochs=5)
     else:
         model.load_state_dict(torch.load(FC_2D_MODEL_PATH))
     
     model.eval()
     plot_2D_decision_boundary_MAP(model, test_dataset)
 
-    lla_inference_2D_classifier(model, train_dataset, test_dataset)
+    #lla_inference_2D_classifier(model, train_dataset, test_dataset)
     projected_posterior_inference_2D_classifier(model, train_dataset, test_dataset)
     loss_posterior_inference_2D_classifier(model, train_dataset, test_dataset)
 

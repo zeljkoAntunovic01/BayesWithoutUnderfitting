@@ -4,21 +4,19 @@ import torch
 import numpy as np
 
 from utils import compute_loss_jacobian_params_classifier, compute_model_jacobian_params_classifier, get_param_vector_tools
-from torch.func import functional_call
+from torch.func import functional_call, jacrev, vmap
 
 class FC_2D_Net(nn.Module):
-    def __init__(self, hidden_units=64, n_classes=4):
+    def __init__(self, hidden_units=16, n_classes=4):
         super(FC_2D_Net, self).__init__()
 
         # Fully Connected Layers
         self.fc1 = nn.Linear(2, hidden_units)
-        self.fc2 = nn.Linear(hidden_units, hidden_units)
-        self.fc3 = nn.Linear(hidden_units, n_classes)
+        self.fc2 = nn.Linear(hidden_units, n_classes)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)  # Raw logits
+        x = self.fc2(x)
         return x
     
 def compute_q_lla(model, x_train, y_train, alpha=2.0):
@@ -69,7 +67,7 @@ def compute_q_lla(model, x_train, y_train, alpha=2.0):
 
     return theta_map, covariance
 
-def compute_q_proj(model, x_train, y_train, alpha=10.0):
+def compute_q_proj(model, x_train, y_train):
     """
     Computes the q_proj posterior for a trained classifier model using the null space of the GGN matrix.
     
@@ -95,7 +93,17 @@ def compute_q_proj(model, x_train, y_train, alpha=10.0):
     probs = torch.softmax(logits, dim=1)         # (N, O)
     O = probs.shape[1]
 
-    J = compute_model_jacobian_params_classifier(model, x_train)
+    params = dict(model.named_parameters())
+    params_vec, unflatten_params = get_param_vector_tools(params)
+    x_train, y_train = x_train.to(params_vec.device), y_train.to(params_vec.device)
+    # Per-example model output
+    def single_output(params_vec, x_i):
+        out = functional_call(model, unflatten_params(params_vec), (x_i.unsqueeze(0),))
+        return out.squeeze(0)  # Remove batch dimension
+
+    # Now vmap over batch
+    J = vmap(jacrev(single_output), in_dims=(None, 0))(params_vec, x_train)
+    J = J.reshape(-1, J.shape[-1]) # (N·O, P) where P is the number of parameters
     print("Max Jacobian:", torch.max(J).item())
     print("Min Jacobian:", torch.min(J).item())
 
@@ -121,6 +129,13 @@ def compute_q_proj(model, x_train, y_train, alpha=10.0):
     print(f"Number of null space dimensions: {null_mask.sum().item()} / {eigenvalues.numel()}")
     I_p = torch.eye(GGN.shape[0])
     projection_matrix = I_p - (V @ (1 - null_mask)) @ V.T
+    P = theta_map.shape[0]
+    alpha_up = torch.dot(theta_map, theta_map)
+    trace_proj = torch.trace(projection_matrix)
+    alpha_down = P - trace_proj
+    alpha = alpha_up / alpha_down
+    print(f"Trace of projection: {trace_proj.item():.4e}")
+    print(f"Optimal alpha: {alpha.item():.4f}")
     projected_covariance = (1.0 / alpha) * projection_matrix
 
     print("Projected Covariance Diagonal Min:", torch.min(projected_covariance.diagonal()).item())
@@ -128,7 +143,7 @@ def compute_q_proj(model, x_train, y_train, alpha=10.0):
 
     return theta_map, projected_covariance
 
-def compute_q_loss(model, x_train, y_train, alpha=10.0):
+def compute_q_loss(model, x_train, y_train):
     """
     Computes the q_loss posterior for a trained classifier model using the null space of the stacked loss gradients.
 
@@ -144,9 +159,17 @@ def compute_q_loss(model, x_train, y_train, alpha=10.0):
         loss_projected_covariance: Approximate posterior covariance using the loss-projection method.
     """
     theta_map = torch.nn.utils.parameters_to_vector(model.parameters()).detach()
-    criterion = nn.CrossEntropyLoss(reduction='sum')
+    criterion = nn.CrossEntropyLoss(reduction='none')
+    params = dict(model.named_parameters())
+    params_vec, unflatten_params = get_param_vector_tools(params)
+    x_train, y_train = x_train.to(params_vec.device), y_train.to(params_vec.device)
+    # Per-example scalar loss function
+    def single_loss(params_vec, x_i, y_i):
+        out = functional_call(model, unflatten_params(params_vec), (x_i.unsqueeze(0),))
+        return criterion(out, y_i.unsqueeze(0))[0]
 
-    J_L_theta = compute_loss_jacobian_params_classifier(model, x_train, y_train, criterion)
+    # Now vmap over batch
+    J_L_theta = vmap(jacrev(single_loss), in_dims=(None, 0, 0))(params_vec, x_train, y_train)
     print("Max Jacobian:", torch.max(J_L_theta).item())
     print("Min Jacobian:", torch.min(J_L_theta).item())
 
@@ -158,10 +181,17 @@ def compute_q_loss(model, x_train, y_train, alpha=10.0):
     print("Eigenvalues Min:", torch.min(eigenvalues).item())
     print("Eigenvalues Max:", torch.max(eigenvalues).item())
 
-    null_mask = (eigenvalues <= (1e-2 + 1)).float() 
+    null_mask = (eigenvalues <= (1e-2 + 1)).float().to(A.device)
     print(f"Number of null space dimensions: {null_mask.sum().item()} / {eigenvalues.numel()}")
-    I_p = torch.eye(A.shape[0])
+    I_p = torch.eye(A.shape[0]).to(A.device)
     projection_matrix = I_p - (V @ (1 - null_mask) @ V.T)
+    P = theta_map.shape[0]
+    alpha_up = torch.dot(theta_map, theta_map)
+    trace_proj = torch.trace(projection_matrix)
+    alpha_down = P - trace_proj
+    alpha = alpha_up / alpha_down
+    print(f"Trace of projection: {trace_proj.item():.4e}")
+    print(f"Optimal alpha: {alpha.item():.4f}")
     projected_covariance = (1.0 / alpha) * projection_matrix
 
     print("Projected Covariance Diagonal Min:", torch.min(projected_covariance.diagonal()).item())
