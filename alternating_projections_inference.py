@@ -16,7 +16,7 @@ def proj_posterior_inference_2D_classifier_alt(model, train_dataset, test_datase
     
     theta_map = torch.nn.utils.parameters_to_vector(model.parameters()).detach()
     num_samples = 5
-    theta_samples = alternating_projections_qproj_classifier(model, x_train, alpha=10.0, num_samples=num_samples)
+    theta_samples = alternating_projections_qproj_classifier(model, x_train, alpha=1.0, num_samples=num_samples)
 
     # Save original parameters
     original_params = torch.nn.utils.parameters_to_vector(model.parameters()).clone()
@@ -52,7 +52,7 @@ def proj_posterior_inference_2D_classifier_alt(model, train_dataset, test_datase
 
 def loss_posterior_inference_2D_classifier_alt(model, train_dataset, test_dataset):
     theta_map = torch.nn.utils.parameters_to_vector(model.parameters()).detach()
-    num_samples = 2
+    num_samples = 5
     theta_samples = sample_loss_projections(model, train_dataset, num_samples=num_samples, batch_size=64)
 
     # Save original parameters

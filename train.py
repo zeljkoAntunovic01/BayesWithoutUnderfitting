@@ -96,9 +96,16 @@ def train_classifier(model, train_data, val_data=None, save_path=None, learning_
             model.train()
             
         scheduler.step()
-        print(f"Epoch {epoch+1}/{num_epochs}:\nTrain Loss: {avg_train_loss:.6f}, Train Accuracy: {train_accuracy:.2f}%\nVal Loss: {avg_val_loss:.6f}, Val Accuracy: {val_acc:.2f}%")
+        if val_data is not None:
+            print(f"Epoch {epoch+1}/{num_epochs}:\nTrain Loss: {avg_train_loss:.6f}, Train Accuracy: {train_accuracy:.2f}%\nVal Loss: {avg_val_loss:.6f}, Val Accuracy: {val_acc:.2f}%")
+        else:
+            print(f"Epoch {epoch+1}/{num_epochs}:\nTrain Loss: {avg_train_loss:.6f}, Train Accuracy: {train_accuracy:.2f}%")
 
-    print(f"Final Loss: {avg_train_loss:.6f}, Final Train Accuracy: {train_accuracy:.2f}%\nFinal Val Loss: {avg_val_loss:.6f}, Final Val Accuracy: {val_acc:.2f}%")
+    if val_data is not None:
+        print(f"Final Train Loss: {avg_train_loss:.6f}, Final Train Accuracy: {train_accuracy:.2f}%\nFinal Val Loss: {avg_val_loss:.6f}, Final Val Accuracy: {val_acc:.2f}%")
+    else:   
+        print(f"Final Train Loss: {avg_train_loss:.6f}, Final Train Accuracy: {train_accuracy:.2f}%")
+   
 
     if (save_path):
         # Ensure the save directory exists

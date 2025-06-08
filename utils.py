@@ -211,7 +211,7 @@ def project_delta_into_nullspace(delta, M, damping=1e-4):
 
 # This is not used anymore -> use the matrix-free version instead
 def alternating_projections_qproj_classifier(
-    model, x_train, alpha=10.0, num_samples=100, num_iters=20, batch_size=32
+    model, x_train, alpha=10.0, num_samples=100, num_iters=50, batch_size=32
 ):
     """
     Samples from the projected posterior using alternating projections.

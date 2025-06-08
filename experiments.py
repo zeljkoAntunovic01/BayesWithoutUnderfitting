@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.utils.data import Subset
 from plots import plot_2D_decision_boundary_MAP, plot_model
 import os
-from alternating_projections_inference import loss_posterior_inference_2D_classifier_alt, loss_posterior_inference_CIFAR10_alt, loss_posterior_inference_MNIST_alt
+from alternating_projections_inference import loss_posterior_inference_2D_classifier_alt, loss_posterior_inference_CIFAR10_alt, loss_posterior_inference_MNIST_alt, proj_posterior_inference_2D_classifier_alt
 
 SINE_MODEL_PATH="results/models/sine_net.pth"
 MNIST_MODEL_PATH="results/models/mnist_model.pth"
@@ -67,15 +67,15 @@ def run_alternated_projections_2d_classification_experiment():
 
     model = fcmodel.FC_2D_Net(n_classes=4)
     if not os.path.exists(FC_2D_MODEL_PATH):
-        train_classifier(model=model, train_data=train_loader, save_path=FC_2D_MODEL_PATH)
+        train_classifier(model=model, train_data=train_loader, save_path=FC_2D_MODEL_PATH, num_epochs=5)
     else:
         model.load_state_dict(torch.load(FC_2D_MODEL_PATH))
     
     model.eval()
     #plot_2D_decision_boundary_MAP(model, test_dataset)
 
-    #proj_posterior_inference_2D_classifier_alt(model, train_dataset, test_dataset)
-    loss_posterior_inference_2D_classifier_alt(model, train_dataset, test_dataset)
+    proj_posterior_inference_2D_classifier_alt(model, train_dataset, test_dataset)
+    #loss_posterior_inference_2D_classifier_alt(model, train_dataset, test_dataset)
 
 def run_alternated_projections_MNIST_experiment(val_split=1.0/6.0):
     random.seed(42)
