@@ -32,7 +32,7 @@ def proj_posterior_inference_2D_classifier_alt(model, train_dataset, test_datase
     y_test_pred = np.argmax(mean_probs_pred, axis=1)
     
     metrics = save_metrics_classification(
-        y_test_pred_map, y_test_pred, mean_probs_pred, var_pred,
+        y_test_pred_map, mean_probs_pred,
         y_test_true.detach().numpy(), f"{METRICS_PATH}2Dclassifier_proj_alt_metrics.json"
     )
 

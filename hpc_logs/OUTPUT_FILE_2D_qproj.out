@@ -1,0 +1,58 @@
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@hpc.dtu.dk>
+Subject: Job 25182635: <2D_qproj> in cluster <dcc> Done
+
+Job <2D_qproj> was submitted from host <gbarlogin1> by user <s233025> in cluster <dcc> at Sun Jun  8 16:39:33 2025
+Job was executed on host(s) <4*n-62-18-9>, in queue <gpua100>, as user <s233025> in cluster <dcc> at Sun Jun  8 22:53:15 2025
+</zhome/4c/1/203176> was used as the home directory.
+</zhome/4c/1/203176/BayesWithoutUnderfitting> was used as the working directory.
+Started at Sun Jun  8 22:53:15 2025
+Terminated at Sun Jun  8 23:02:38 2025
+Results reported at Sun Jun  8 23:02:38 2025
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+#!/bin/bash
+#BSUB -J 2D_qproj
+#BSUB -q gpua100
+#BSUB -W 12:00
+#BSUB -n 4
+#BSUB -R "span[hosts=1]"
+#BSUB -R "rusage[mem=10GB]"
+#BSUB -gpu "num=1:mode=exclusive_process"
+
+#BSUB -o /zhome/4c/1/203176/BayesWithoutUnderfitting/hpc_logs/OUTPUT_FILE_2D_qproj.out
+#BSUB -e /zhome/4c/1/203176/BayesWithoutUnderfitting/hpc_logs/OUTPUT_FILE_2D_qproj.err
+
+module load python3/3.11.9
+
+source /zhome/4c/1/203176/BayesWithoutUnderfitting/venv/bin/activate
+python /zhome/4c/1/203176/BayesWithoutUnderfitting/main.py --experiment 2d_altproj_qproj > /zhome/4c/1/203176/BayesWithoutUnderfitting/hpc_logs/OUTPUT_FILE_2D_qproj.log 2>&1
+------------------------------------------------------------
+
+Successfully completed.
+
+Resource usage summary:
+
+    CPU time :                                   511.32 sec.
+    Max Memory :                                 3883 MB
+    Average Memory :                             3109.33 MB
+    Total Requested Memory :                     40960.00 MB
+    Delta Memory :                               37077.00 MB
+    Max Swap :                                   -
+    Max Processes :                              4
+    Max Threads :                                8
+    Run time :                                   564 sec.
+    Turnaround time :                            22985 sec.
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file </zhome/4c/1/203176/BayesWithoutUnderfitting/hpc_logs/OUTPUT_FILE_2D_qproj.err> for stderr output of this job.
+
