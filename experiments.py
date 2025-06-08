@@ -58,7 +58,7 @@ def run_naive_2d_classification_experiment():
     projected_posterior_inference_2D_classifier(model, train_dataset, test_dataset)
     loss_posterior_inference_2D_classifier(model, train_dataset, test_dataset)
 
-def run_alternated_projections_2d_classification_experiment():
+def run_alternated_projections_2d_qproj_classification_experiment():
     train_dataset = Gaussian2DClassificationDataset(split="train", n_classes=4, points_per_class=1000)
     test_dataset = Gaussian2DClassificationDataset(split="test", n_classes=4, points_per_class=100)
 
@@ -75,7 +75,24 @@ def run_alternated_projections_2d_classification_experiment():
     #plot_2D_decision_boundary_MAP(model, test_dataset)
 
     proj_posterior_inference_2D_classifier_alt(model, train_dataset, test_dataset)
-    #loss_posterior_inference_2D_classifier_alt(model, train_dataset, test_dataset)
+
+def run_alternated_projections_2d_qloss_classification_experiment():
+    train_dataset = Gaussian2DClassificationDataset(split="train", n_classes=4, points_per_class=1000)
+    test_dataset = Gaussian2DClassificationDataset(split="test", n_classes=4, points_per_class=100)
+
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+
+    model = fcmodel.FC_2D_Net(n_classes=4)
+    if not os.path.exists(FC_2D_MODEL_PATH):
+        train_classifier(model=model, train_data=train_loader, save_path=FC_2D_MODEL_PATH, num_epochs=5)
+    else:
+        model.load_state_dict(torch.load(FC_2D_MODEL_PATH))
+    
+    model.eval()
+    #plot_2D_decision_boundary_MAP(model, test_dataset)
+
+    loss_posterior_inference_2D_classifier_alt(model, train_dataset, test_dataset)
 
 def run_alternated_projections_MNIST_experiment(val_split=1.0/6.0):
     random.seed(42)

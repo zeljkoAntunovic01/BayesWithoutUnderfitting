@@ -1,6 +1,7 @@
 import argparse
 from experiments import (
-    run_alternated_projections_2d_classification_experiment,
+    run_alternated_projections_2d_qloss_classification_experiment,
+    run_alternated_projections_2d_qproj_classification_experiment,
     run_alternated_projections_CIFAR10_experiment,
     run_naive_2d_classification_experiment,
     run_naive_sine_experiment,
@@ -21,8 +22,10 @@ def main():
         run_naive_sine_experiment()
     elif args.experiment == "2d_naive":
         run_naive_2d_classification_experiment()
-    elif args.experiment == "2d_altproj":
-        run_alternated_projections_2d_classification_experiment()
+    elif args.experiment == "2d_altproj_qloss":
+        run_alternated_projections_2d_qloss_classification_experiment()
+    elif args.experiment == "2d_altproj_proj":
+        run_alternated_projections_2d_qproj_classification_experiment()
     elif args.experiment == "mnist":
         run_alternated_projections_MNIST_experiment()
     elif args.experiment == "cifar10":
