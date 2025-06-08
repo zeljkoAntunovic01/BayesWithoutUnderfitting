@@ -4,6 +4,7 @@ from torch.func import vmap, functional_call
 from torch.utils.data import DataLoader
 
 from alternating_loss_projections import loss_projection
+from plots import plot_projection_metrics
 from precompute_loss_inv import precompute_loss_inv
 from utils import get_param_vector_tools
 
@@ -54,8 +55,10 @@ def sample_loss_projections(
         x_val=x_val
     )
 
-    """# SERIALIZED VERSION FOR DEBUGGING
+    """ # SERIALIZED VERSION FOR DEBUGGING
     projected_samples = []
+    proj_norms_all = []
+    kernel_norm_ratios_all = []
     for i in range(num_samples):
         print(f"Processing sample {i+1}/{num_samples}...")
         start_time = time.time()
@@ -68,6 +71,10 @@ def sample_loss_projections(
               f"Final Kernel Ratio = {final_kernel_ratio.item():.4e} | "
               f"Time taken: {end_time - start_time:.2f} seconds")
         projected_samples.append(projected_sample)
+        proj_norms_all.append(proj_norms)
+        kernel_norm_ratios_all.append(kernel_norm_ratios)
+    
+    plot_projection_metrics(proj_norms_all, kernel_norm_ratios_all)
 
     posterior_samples = []
     for sample in projected_samples:
@@ -83,6 +90,10 @@ def sample_loss_projections(
     for i in range(final_proj_norms.shape[0]):
         print(f"Sample {i}: Final Proj Norm = {final_proj_norms[i].item():.4e} | "
             f"Final Kernel Ratio = {final_kernel_ratios[i].item():.4e}")
+    # Convert 2D tensors to lists of 1D tensors for plotting
+    proj_norms_list = [proj_norms[i] for i in range(proj_norms.size(0))]
+    kernel_ratios_list = [kernel_norm_ratios[i] for i in range(kernel_norm_ratios.size(0))]
+    plot_projection_metrics(proj_norms_list, kernel_ratios_list)
 
     print(f"Calculating optimal alpha...")
     trace_proj = vmap(lambda e, x: torch.dot(e, x), in_dims=(0, 0))(prior_samples, projected_samples).mean()
@@ -91,7 +102,6 @@ def sample_loss_projections(
     print(f"Optimal alpha: {alpha.item():.4f}")
 
     posterior_samples = vmap(lambda single_sample: params_vec + (1./torch.sqrt(alpha)) * single_sample)(projected_samples)
-
     return posterior_samples
 
 

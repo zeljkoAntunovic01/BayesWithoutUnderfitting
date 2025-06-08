@@ -1,8 +1,9 @@
 from matplotlib import pyplot as plt
 import numpy as np
 import torch
-from matplotlib.colors import to_rgb, Normalize
+from matplotlib.colors import Normalize
 import matplotlib.cm as cm
+from matplotlib.ticker import LogFormatter
 
 def plot_model(model, x_train, y_train):
     x_test = torch.linspace(-2 * np.pi, 2 * np.pi, 200).unsqueeze(1)
@@ -311,4 +312,49 @@ def plot_2D_decision_boundary_confidence(model, theta_samples, X_test, y_test, m
     )
     plt.tight_layout(rect=[0, 0, 0.85, 1])
     plt.savefig(save_path)
+    plt.show()
+
+def plot_projection_metrics(proj_norms_list, kernel_ratios_list, sample_labels=None, path="results/metrics/alternating_projections/MNIST_metrics_plot.png"):
+    """
+    Plots projection norms and kernel norm ratios over iterations for multiple samples.
+
+    Args:
+        proj_norms_list (List[Tensor]): List of 1D tensors, each containing projection norms per iteration.
+        kernel_ratios_list (List[Tensor]): List of 1D tensors, each containing kernel norm ratios per iteration.
+        sample_labels (List[str], optional): Labels for each sample. Defaults to Sample 0, Sample 1, ...
+    """
+    import torch
+
+    num_samples = len(proj_norms_list)
+    iterations = [torch.arange(len(pn)).cpu().numpy() for pn in proj_norms_list]
+    if sample_labels is None:
+        sample_labels = [f"Sample {i}" for i in range(num_samples)]
+
+    # Plot projection norms
+    plt.figure(figsize=(12, 5))
+
+    ax1 = plt.subplot(1, 2, 1)
+    for i in range(num_samples):
+        ax1.plot(iterations[i], proj_norms_list[i].cpu().numpy(), label=sample_labels[i])
+    ax1.set_title("Projection Norms over Iterations")
+    ax1.set_xlabel("Iteration")
+    ax1.set_ylabel("Projection Norm")
+    ax1.set_yscale("log")
+    ax1.yaxis.set_major_formatter(LogFormatter(labelOnlyBase=False))
+    ax1.yaxis.set_minor_formatter(LogFormatter(labelOnlyBase=False))
+    ax1.legend()
+
+    ax2 = plt.subplot(1, 2, 2)
+    for i in range(num_samples):
+        ax2.plot(iterations[i], kernel_ratios_list[i].cpu().numpy(), label=sample_labels[i])
+    ax2.set_title("Kernel Norm Ratios over Iterations")
+    ax2.set_xlabel("Iteration")
+    ax2.set_ylabel("Kernel Norm Ratio")
+    ax2.set_yscale("log")
+    ax2.yaxis.set_major_formatter(LogFormatter(labelOnlyBase=False))
+    ax2.yaxis.set_minor_formatter(LogFormatter(labelOnlyBase=False))
+    ax2.legend()
+
+    plt.tight_layout()
+    plt.savefig(path)
     plt.show()
